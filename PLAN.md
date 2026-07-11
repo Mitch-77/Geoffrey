@@ -123,6 +123,14 @@ older than 7 days.
       style) and Move the Needle section (move_the_needle completions
       grouped by week with bucket/project tags). Pushed 2026-07-12. Not yet
       verified in a real browser.
-- [ ] Phase 5 — Flow limit + Eat the Frog
+- [x] Phase 5 — Flow limit + Eat the Frog, plus a UI audit pass. Also redesigned
+      the task-row expander panel (and the note pill row, and the project add
+      form) from unlabeled wrapped pills into a labeled 2-column grid, matching
+      the .field/.field-row pattern already used in modals - the user flagged
+      the expander specifically as "scattered." >2 flow tasks today shows a
+      non-blocking amber banner with a one-tap "move lowest-priority flow task
+      to next week" action (Future Plan, 7 days out). Important+urgent+flow
+      tasks get a small 🐸 badge (to-do list and Day Tracker), purely visual.
+      Pushed 2026-07-12. Not yet verified in a real browser.
 - [ ] Phase 6 — Dynamic journaling
 - [ ] Phase 7 — Habits, Routine button, Open Loops

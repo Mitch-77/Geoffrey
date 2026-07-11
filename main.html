@@ -364,6 +364,27 @@ body::after {
 .gm-order-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
 .gm-order-btn:active { transform: scale(0.97); }
 
+.flow-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  background: rgba(242,192,99,0.08);
+  border: 1px solid rgba(242,192,99,0.25);
+}
+.flow-banner-text { font-size: 12px; color: #FFE2A8; }
+.flow-banner-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(242,192,99,0.35);
+  background: rgba(242,192,99,0.14);
+  color: #FFE2A8;
+  font-family: inherit; font-size: 11px; font-weight: 700;
+  padding: 6px 10px; border-radius: 8px; cursor: pointer;
+}
+.flow-banner-btn:hover { background: rgba(242,192,99,0.22); }
+
+.gm-frog-badge { flex-shrink: 0; font-size: 14px; }
+
 .gm-bar {
   display: flex; gap: 4px;
   height: 6px;
@@ -407,23 +428,47 @@ body::after {
 }
 
 .gm-row-meta {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 10px;
   margin-top: 10px; padding-top: 10px;
   border-top: 1px solid rgba(255,255,255,0.06);
 }
+.gm-meta-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.gm-meta-field-label {
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.gm-meta-field > select, .gm-meta-field > input, .gm-meta-field > button {
+  width: 100%;
+}
 .gm-pill-select {
   appearance: none; -webkit-appearance: none; -moz-appearance: none;
-  flex-shrink: 0;
-  padding: 5px 20px 5px 9px;
+  padding: 7px 22px 7px 10px;
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 8px;
   background-color: rgba(0,0,0,0.28);
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 0l4 5 4-5z' fill='%23B8B6B0'/></svg>");
   background-repeat: no-repeat;
-  background-position: right 7px center;
+  background-position: right 8px center;
   color: var(--text-secondary);
-  font-family: inherit; font-size: 11px; font-weight: 600;
+  font-family: inherit; font-size: 12px; font-weight: 600;
   cursor: pointer;
+}
+.gm-repeat-toggle {
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  background-color: rgba(0,0,0,0.28);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  padding: 7px 10px;
+  text-align: left;
+  cursor: pointer;
+}
+.gm-repeat-toggle.active {
+  border-color: rgba(125,211,252,0.4);
+  background-color: rgba(125,211,252,0.10);
+  color: #BFEBFF;
 }
 .gm-expander-btn {
   display: none;
@@ -436,8 +481,11 @@ body::after {
 .gm-expander-btn:hover { opacity: 1; }
 @media (max-width: 640px) {
   .gm-row-meta { display: none; }
-  .gm-row-meta.expanded { display: flex; }
+  .gm-row-meta.expanded { display: grid; }
   .gm-expander-btn { display: inline-flex; align-items: center; justify-content: center; }
+}
+@media (max-width: 360px) {
+  .gm-row-meta.expanded { grid-template-columns: 1fr; }
 }
 .gm-row.gm-row-done {
   opacity: 0.45;
@@ -548,22 +596,6 @@ body::after {
   filter: drop-shadow(0 0 4px rgba(242,192,99,0.65));
 }
 .gm-queue-btn:disabled { cursor: not-allowed; opacity: 0.3; }
-
-.gm-repeat-btn {
-  border: 0; background: transparent;
-  color: var(--text-tertiary);
-  font-size: 13px;
-  cursor: pointer;
-  padding: 4px 6px;
-  border-radius: 6px;
-  opacity: 0.5;
-  transition: opacity 0.2s, filter 0.2s;
-}
-.gm-repeat-btn:hover { opacity: 1; }
-.gm-repeat-btn.gm-repeat-active {
-  opacity: 1;
-  filter: drop-shadow(0 0 4px rgba(125,211,252,0.65));
-}
 
 .goal-delete {
   border: 0; background: transparent;
@@ -824,29 +856,10 @@ body::after {
 
 /* ===== Headquarters: Projects ===== */
 .proj-add-row {
-  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
-  margin-bottom: 14px;
+  display: flex; flex-direction: column;
+  margin-bottom: 16px;
 }
-.proj-add-row input[type="text"], .proj-add-row select, .proj-add-row input[type="date"] {
-  padding: 10px 12px;
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
-  background: rgba(0,0,0,0.28);
-  color: var(--text-primary);
-  font-family: inherit; font-size: 13px;
-  outline: none;
-}
-.proj-add-row input[type="text"] { flex: 1; min-width: 140px; }
-.proj-add-row select {
-  appearance: none; -webkit-appearance: none; -moz-appearance: none;
-  padding-right: 28px;
-  background-color: rgba(0,0,0,0.28);
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23B8B6B0'/></svg>");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  color: var(--text-primary);
-  cursor: pointer;
-}
+.proj-add-row .gm-add { align-self: flex-start; margin-top: 4px; }
 .proj-group-title {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
   color: var(--text-tertiary);
@@ -895,7 +908,7 @@ body::after {
   padding: 2px 6px;
 }
 .note-delete:hover { opacity: 1; color: var(--danger); }
-.note-pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.note-pill-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 
 /* ===== Headquarters: Time Tracking ===== */
 .tt-card { margin-bottom: 18px; }
@@ -1153,15 +1166,26 @@ body::after {
   <div class="section">
     <div class="section-title">Projects</div>
     <div class="proj-add-row">
-      <input type="text" id="projNameInput" placeholder="New project name…" autocomplete="off">
-      <select id="projBucketInput"></select>
-      <select id="projStatusInput">
-        <option value="ongoing">Ongoing</option>
-        <option value="deadline">Deadline</option>
-        <option value="done">Done</option>
-      </select>
-      <input type="date" id="projDeadlineInput" style="display:none;">
-      <button type="button" class="gm-add" id="projAddBtn">+ Add</button>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="projNameInput" placeholder="New project name…" autocomplete="off">
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Bucket</label><select id="projBucketInput"></select></div>
+        <div class="field">
+          <label>Status</label>
+          <select id="projStatusInput">
+            <option value="ongoing">Ongoing</option>
+            <option value="deadline">Deadline</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="projDeadlineField" style="display:none;">
+        <label>Deadline</label>
+        <input type="date" id="projDeadlineInput">
+      </div>
+      <button type="button" class="gm-add" id="projAddBtn">+ Add Project</button>
     </div>
     <div class="proj-groups" id="projGroups"></div>
     <div class="empty-state" id="projEmpty">No projects yet — add one above.</div>
@@ -1188,6 +1212,10 @@ body::after {
         </div>
       </div>
       <button type="button" id="gmOrderBtn" class="gm-order-btn" title="Sort by Eisenhower priority">⇅ Order</button>
+      <div class="flow-banner" id="flowBanner" style="display:none;">
+        <span class="flow-banner-text" id="flowBannerText"></span>
+        <button type="button" class="flow-banner-btn" id="flowBannerBtn">Move one to next week</button>
+      </div>
       <div class="gm-bar" id="gmBar"></div>
       <ul id="goalList" class="goal-list gm-list"></ul>
       <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
@@ -1727,6 +1755,19 @@ body::after {
     sel.addEventListener('change', () => onChange(sel.value));
     return sel;
   }
+  // Wraps a control with a small caption above it, for the labeled-grid
+  // panels (task meta row, note pills, project add row) - one visual
+  // pattern everywhere instead of unlabeled pills that read as clutter.
+  function metaField(labelText, controlEl) {
+    const wrap = document.createElement('div');
+    wrap.className = 'gm-meta-field';
+    const label = document.createElement('span');
+    label.className = 'gm-meta-field-label';
+    label.textContent = labelText;
+    wrap.appendChild(label);
+    wrap.appendChild(controlEl);
+    return wrap;
+  }
 
   const IMPORTANCE_OPTIONS = [
     { value: 'not_important',   label: 'Not Important' },
@@ -1793,6 +1834,14 @@ body::after {
     main.appendChild(text);
     makeInlineEdit(text, null, idx, key, reload);
 
+    if (key === todayKey() && !goal.done && isFrogTask(goal)) {
+      const frogBadge = document.createElement('span');
+      frogBadge.className = 'gm-frog-badge';
+      frogBadge.textContent = '🐸';
+      frogBadge.title = 'Eat the frog — do this one first';
+      main.appendChild(frogBadge);
+    }
+
     if (goal.missedDays > 0 && !goal.done) {
       li.classList.add('gm-row-missed');
       const missedBadge = document.createElement('span');
@@ -1818,6 +1867,9 @@ body::after {
     });
     main.appendChild(queueBtn);
 
+    // A labeled 2-column grid instead of a loose wrap of unlabeled pills -
+    // each control gets a small caption so the panel reads as an organized
+    // form rather than a scatter of same-looking dropdowns.
     const meta = document.createElement('div');
     meta.className = 'gm-row-meta';
 
@@ -1834,52 +1886,7 @@ body::after {
       setGoals(key, list);
       reload();
     });
-    meta.appendChild(bucketSel);
-
-    if (key === todayKey()) {
-      const repeatBtn = document.createElement('button');
-      repeatBtn.type = 'button';
-      const isRecurring = HQ.isDailyTemplate(goal.text);
-      repeatBtn.className = 'gm-repeat-btn' + (isRecurring ? ' gm-repeat-active' : '');
-      repeatBtn.textContent = '🔁';
-      repeatBtn.title = isRecurring ? 'Repeats daily — click to stop repeating' : 'Repeat this task every day';
-      repeatBtn.addEventListener('click', () => {
-        if (HQ.isDailyTemplate(goal.text)) {
-          HQ.removeDailyTemplate(goal.text);
-        } else {
-          HQ.addDailyTemplate({ text: goal.text, bucket: goal.bucket, projectId: goal.projectId });
-        }
-        reload();
-      });
-      meta.appendChild(repeatBtn);
-    }
-
-    const importanceSel = fieldSelect('gm-pill-select', IMPORTANCE_OPTIONS, goal.importance, (v) => {
-      const list = getGoals(key);
-      if (!list[idx]) return;
-      list[idx].importance = v;
-      setGoals(key, list);
-      reload();
-    }, readOnly);
-    meta.appendChild(importanceSel);
-
-    const urgencySel = fieldSelect('gm-pill-select', URGENCY_OPTIONS, goal.urgency, (v) => {
-      const list = getGoals(key);
-      if (!list[idx]) return;
-      list[idx].urgency = v;
-      setGoals(key, list);
-      reload();
-    }, readOnly);
-    meta.appendChild(urgencySel);
-
-    const stateSel = fieldSelect('gm-pill-select', STATE_OPTIONS, goal.state || '', (v) => {
-      const list = getGoals(key);
-      if (!list[idx]) return;
-      list[idx].state = v || null;
-      setGoals(key, list);
-      reload();
-    }, readOnly);
-    meta.appendChild(stateSel);
+    meta.appendChild(metaField('Bucket', bucketSel));
 
     const projectSel = document.createElement('select');
     projectSel.className = 'gm-pill-select';
@@ -1893,13 +1900,39 @@ body::after {
       setGoals(key, list);
       reload();
     });
-    meta.appendChild(projectSel);
+    meta.appendChild(metaField('Project', projectSel));
+
+    const importanceSel = fieldSelect('gm-pill-select', IMPORTANCE_OPTIONS, goal.importance, (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].importance = v;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(metaField('Importance', importanceSel));
+
+    const urgencySel = fieldSelect('gm-pill-select', URGENCY_OPTIONS, goal.urgency, (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].urgency = v;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(metaField('Urgency', urgencySel));
+
+    const stateSel = fieldSelect('gm-pill-select', STATE_OPTIONS, goal.state || '', (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].state = v || null;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(metaField('State', stateSel));
 
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.className = 'gm-time-input';
     timeInput.value = goal.startTime || '';
-    timeInput.title = 'Schedule a start time';
     if (readOnly) timeInput.disabled = true;
     timeInput.addEventListener('change', () => {
       const list = getGoals(key);
@@ -1908,7 +1941,7 @@ body::after {
       setGoals(key, list);
       reload();
     });
-    meta.appendChild(timeInput);
+    meta.appendChild(metaField('Start time', timeInput));
 
     const durationSel = fieldSelect('gm-pill-select', DURATION_OPTIONS, goal.durationMinutes ? String(goal.durationMinutes) : '', (v) => {
       const list = getGoals(key);
@@ -1917,7 +1950,24 @@ body::after {
       setGoals(key, list);
       reload();
     }, readOnly);
-    meta.appendChild(durationSel);
+    meta.appendChild(metaField('Duration', durationSel));
+
+    if (key === todayKey()) {
+      const isRecurring = HQ.isDailyTemplate(goal.text);
+      const repeatBtn = document.createElement('button');
+      repeatBtn.type = 'button';
+      repeatBtn.className = 'gm-repeat-toggle' + (isRecurring ? ' active' : '');
+      repeatBtn.textContent = isRecurring ? '🔁 Repeats daily' : '🔁 One-off';
+      repeatBtn.addEventListener('click', () => {
+        if (HQ.isDailyTemplate(goal.text)) {
+          HQ.removeDailyTemplate(goal.text);
+        } else {
+          HQ.addDailyTemplate({ text: goal.text, bucket: goal.bucket, projectId: goal.projectId });
+        }
+        reload();
+      });
+      meta.appendChild(metaField('Repeat', repeatBtn));
+    }
 
     li.appendChild(meta);
 
@@ -2044,7 +2094,44 @@ body::after {
     renderDayTracker();
     renderTimeTracking();
     renderMoveTheNeedle();
+    renderFlowBanner();
   }
+
+  // ---------- Flow limit (>2 flow tasks/day nudges you to defer one) ----------
+  const FLOW_LIMIT = 2;
+  function isFrogTask(g) {
+    return g.state === 'flow' && g.urgency === 'urgent' &&
+      (g.importance === 'important' || g.importance === 'move_the_needle');
+  }
+  function renderFlowBanner() {
+    const banner = document.getElementById('flowBanner');
+    const flowTasks = getGoals(todayKey()).filter(g => !g.done && g.state === 'flow');
+    if (flowTasks.length <= FLOW_LIMIT) { banner.style.display = 'none'; return; }
+    document.getElementById('flowBannerText').textContent =
+      flowTasks.length + ' flow tasks scheduled — brains max out at ~4h deep focus. Move one?';
+    banner.style.display = 'flex';
+  }
+  document.getElementById('flowBannerBtn').addEventListener('click', () => {
+    const list = getGoals(todayKey());
+    const flowTasks = list.filter(g => !g.done && g.state === 'flow');
+    if (!flowTasks.length) return;
+    let worst = flowTasks[0];
+    flowTasks.forEach(g => { if (HQ.eisenhowerRank(g) > HQ.eisenhowerRank(worst)) worst = g; });
+    const idx = list.findIndex(x => x.id === worst.id);
+    if (idx === -1) return;
+    list.splice(idx, 1);
+    setGoals(todayKey(), list);
+    const future = new Date();
+    future.setDate(future.getDate() + 7);
+    const futureKey = 'goals:' + dateToKey(future);
+    const futureList = getGoals(futureKey);
+    // Deliberately deferred, not missed - don't carry over the missed-days count.
+    futureList.push(Object.assign({}, worst, { missedDays: 0 }));
+    setGoals(futureKey, futureList);
+    loadToday();
+    renderFuturePlan();
+    showToast('Moved "' + worst.text + '" to ' + formatDate(dateToKey(future)), '📅');
+  });
 
   // ---------- Day Tracker: visual timeline for today's scheduled tasks ----------
   function timeStrToMinutes(t) {
@@ -2162,7 +2249,7 @@ body::after {
 
       const textEl = document.createElement('div');
       textEl.className = 'daytrack-block-text';
-      textEl.textContent = g.text;
+      textEl.textContent = (isFrogTask(g) ? '🐸 ' : '') + g.text;
       block.appendChild(textEl);
 
       wireBlockInteraction(block, { i, top, height, goalId: g.id }, { pxPerHour, spanStart, spanEnd, totalPx });
@@ -2597,7 +2684,7 @@ body::after {
   }
 
   document.getElementById('projStatusInput').addEventListener('change', (e) => {
-    document.getElementById('projDeadlineInput').style.display = e.target.value === 'deadline' ? '' : 'none';
+    document.getElementById('projDeadlineField').style.display = e.target.value === 'deadline' ? '' : 'none';
   });
   document.getElementById('projAddBtn').addEventListener('click', () => {
     const nameEl = document.getElementById('projNameInput');
@@ -2884,7 +2971,7 @@ body::after {
         HQ.setNotes(notes);
         if (activeProjectId) renderProjectModal();
       });
-      pillRow.appendChild(projSel);
+      pillRow.appendChild(metaField('Project', projSel));
       const taskSel = document.createElement('select');
       taskSel.className = 'gm-pill-select';
       populateTaskSelect(taskSel, n.bucket);
@@ -2898,7 +2985,7 @@ body::after {
         if (activeTaskDetailId) renderTaskDetailNotes();
         renderNotes();
       });
-      pillRow.appendChild(taskSel);
+      pillRow.appendChild(metaField('Task', taskSel));
       card.appendChild(pillRow);
       const del = document.createElement('button');
       del.type = 'button';
