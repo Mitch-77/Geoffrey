@@ -346,28 +346,22 @@ body::after {
   filter: drop-shadow(0 0 6px rgba(242,192,99,0.6));
 }
 
-.gm-view-toggle {
-  display: flex; gap: 4px;
-  background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 10px;
-  padding: 3px;
+.gm-order-btn {
+  display: inline-block;
   margin-bottom: 12px;
-}
-.gm-view-btn {
-  flex: 1;
-  border: 0; background: transparent;
-  color: var(--text-tertiary);
+  padding: 7px 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 10px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
   font-family: inherit; font-size: 11px; font-weight: 700;
   letter-spacing: 0.04em;
-  padding: 7px; border-radius: 7px;
   cursor: pointer;
+  transition: background 0.15s, color 0.15s;
   -webkit-tap-highlight-color: transparent;
 }
-.gm-view-btn.active {
-  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
-  color: #0A0A0B;
-}
+.gm-order-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.gm-order-btn:active { transform: scale(0.97); }
 
 .gm-bar {
   display: flex; gap: 4px;
@@ -651,6 +645,28 @@ body::after {
 .gm-polish:hover {
   background: rgba(255,255,255,0.07);
   border-color: rgba(255,255,255,0.18);
+}
+
+.future-add-row {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.future-add-row input[type="date"] {
+  padding: 11px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 13px;
+  outline: none;
+}
+.future-add-row .gm-input { flex: 1; min-width: 140px; }
+.future-date-group { margin-top: 16px; }
+.future-date-group:first-of-type { margin-top: 14px; }
+.future-date-header {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin-bottom: 6px;
 }
 
 @media (max-width: 480px) {
@@ -968,10 +984,7 @@ body::after {
           <span>day streak</span>
         </div>
       </div>
-      <div class="gm-view-toggle" id="gmViewToggle">
-        <button type="button" class="gm-view-btn" data-view="manual">Manual</button>
-        <button type="button" class="gm-view-btn" data-view="order">Order</button>
-      </div>
+      <button type="button" id="gmOrderBtn" class="gm-order-btn" title="Sort by Eisenhower priority">⇅ Order</button>
       <div class="gm-bar" id="gmBar"></div>
       <ul id="goalList" class="goal-list gm-list"></ul>
       <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
@@ -997,6 +1010,23 @@ body::after {
         <input id="tomorrowInput" class="gm-input" type="text" placeholder="Add a goal for tomorrow…" autocomplete="off">
         <button type="button" id="tomorrowAddBtn"    class="gm-add">+ Add</button>
       </div>
+    </div>
+
+    <!-- FUTURE PLAN -->
+    <div class="gm-card">
+      <div class="gm-header">
+        <div class="gm-header-left">
+          <div class="gm-eyebrow">Future Plan</div>
+          <div class="gm-tomorrow-sub">Schedule a task for any later date.</div>
+        </div>
+      </div>
+      <div class="future-add-row">
+        <input type="date" id="futureDateInput">
+        <input type="text" id="futureTextInput" class="gm-input" placeholder="What needs doing?" autocomplete="off">
+        <button type="button" id="futureAddBtn" class="gm-add">+ Add</button>
+      </div>
+      <div id="futureGroups"></div>
+      <div id="futureEmpty" class="empty-state">Nothing scheduled beyond tomorrow yet.</div>
     </div>
   </div>
 
@@ -1389,7 +1419,7 @@ body::after {
     row.setAttribute('draggable', 'true');
     row.addEventListener('dragstart', (e) => {
       e.dataTransfer.effectAllowed = 'move';
-      e.dataTransfer.setData('text/plain', row.dataset.idx);
+      e.dataTransfer.setData('text/plain', key + '::' + row.dataset.idx);
     });
     row.addEventListener('dragover', (e) => {
       e.preventDefault();
@@ -1399,9 +1429,15 @@ body::after {
     row.addEventListener('drop', (e) => {
       e.preventDefault();
       row.classList.remove('is-drag-over');
-      const from = parseInt(e.dataTransfer.getData('text/plain'), 10);
+      const raw = e.dataTransfer.getData('text/plain');
+      const sep = raw.lastIndexOf('::');
+      if (sep === -1) return;
+      const sourceKey = raw.slice(0, sep);
+      const from = parseInt(raw.slice(sep + 2), 10);
       const to   = parseInt(row.dataset.idx, 10);
-      if (isNaN(from) || isNaN(to) || from === to) return;
+      // Now that many day-buckets can render at once (Today/Tomorrow/Future),
+      // a drop must stay within the list it started in.
+      if (sourceKey !== key || isNaN(from) || isNaN(to) || from === to) return;
       const list = getGoals(key);
       const [moved] = list.splice(from, 1);
       list.splice(to, 0, moved);
@@ -1439,8 +1475,6 @@ body::after {
   ];
 
   function buildGoalRow(goal, idx, key, readOnly, reload) {
-    const orderActive = key === todayKey() && getOrderView();
-
     const li = document.createElement('li');
     li.className = 'gm-row';
     li.dataset.idx = String(idx);
@@ -1454,8 +1488,6 @@ body::after {
     const handle = document.createElement('span');
     handle.className = 'gm-handle';
     handle.textContent = '⋮⋮';
-    handle.title = 'Drag to reorder (switch to Manual view)';
-    if (orderActive) handle.style.display = 'none';
     main.appendChild(handle);
 
     const cb = document.createElement('input');
@@ -1582,7 +1614,7 @@ body::after {
     });
     main.appendChild(del);
 
-    if (!orderActive) wireDragReorder(li, null, key, reload);
+    wireDragReorder(li, null, key, reload);
     return li;
   }
 
@@ -1675,30 +1707,16 @@ body::after {
     else                    renderTomorrowCount();
   }
 
-  // ---------- Order view (Eisenhower auto-sort) ----------
-  function getOrderView() { return !!storeGet('todo_order_view_v1'); }
-  function setOrderView(v) { storeSet('todo_order_view_v1', v); }
+  // ---------- Order button (one-tap Eisenhower sort) ----------
   function sortByEisenhower(list) {
     return list.slice().sort((a, b) => HQ.eisenhowerRank(a) - HQ.eisenhowerRank(b));
   }
-  function renderViewToggle() {
-    const active = getOrderView() ? 'order' : 'manual';
-    document.querySelectorAll('.gm-view-btn').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.view === active);
-    });
-  }
-  document.querySelectorAll('.gm-view-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      setOrderView(btn.dataset.view === 'order');
-      renderViewToggle();
-      loadToday();
-    });
+  document.getElementById('gmOrderBtn').addEventListener('click', () => {
+    setGoals(todayKey(), sortByEisenhower(getGoals(todayKey())));
+    loadToday();
   });
 
   function loadToday() {
-    if (getOrderView()) {
-      setGoals(todayKey(), sortByEisenhower(getGoals(todayKey())));
-    }
     const goals = getGoals(todayKey());
     renderListInto(goals, document.getElementById('goalList'), document.getElementById('emptyState'), todayKey(), false);
   }
@@ -1706,6 +1724,70 @@ body::after {
     const goals = getGoals(tomorrowKey());
     renderListInto(goals, document.getElementById('tomorrowList'), document.getElementById('tomorrowEmpty'), tomorrowKey(), true);
   }
+
+  // ---------- Future Plan (any date beyond tomorrow) ----------
+  function futureDateStrings() {
+    const tomorrowDateStr = getTomorrowDateString();
+    return storeListKeys('goals:')
+      .map(k => k.slice('goals:'.length))
+      .filter(d => d > tomorrowDateStr)
+      .sort();
+  }
+  function buildFutureDateGroup(dateStr) {
+    const key = 'goals:' + dateStr;
+    const activeBucket = HQ.getActiveBucket();
+    const allGoals = getGoals(key);
+    const indexed = allGoals
+      .map((g, i) => ({ g, i }))
+      .filter(({ g }) => !activeBucket || g.bucket === activeBucket);
+    if (!indexed.length) return null;
+
+    const group = document.createElement('div');
+    group.className = 'future-date-group';
+    const header = document.createElement('div');
+    header.className = 'future-date-header';
+    header.textContent = formatDate(dateStr);
+    group.appendChild(header);
+    const ul = document.createElement('ul');
+    ul.className = 'goal-list gm-list';
+    indexed.forEach(({ g, i }) => ul.appendChild(buildGoalRow(g, i, key, false, renderFuturePlan)));
+    group.appendChild(ul);
+    return group;
+  }
+  function renderFuturePlan() {
+    const container = document.getElementById('futureGroups');
+    container.innerHTML = '';
+    let any = false;
+    futureDateStrings().forEach(dateStr => {
+      const group = buildFutureDateGroup(dateStr);
+      if (group) { container.appendChild(group); any = true; }
+    });
+    document.getElementById('futureEmpty').style.display = any ? 'none' : 'block';
+  }
+  (function initFutureAdd() {
+    const dateEl = document.getElementById('futureDateInput');
+    const textEl = document.getElementById('futureTextInput');
+    const addBtn = document.getElementById('futureAddBtn');
+    const minDate = new Date();
+    minDate.setDate(minDate.getDate() + 2);
+    dateEl.min = dateToKey(minDate);
+    dateEl.value = dateToKey(minDate);
+    function add() {
+      const dateStr = dateEl.value;
+      const text = textEl.value.trim();
+      if (!dateStr || !text) return;
+      const key = 'goals:' + dateStr;
+      const list = getGoals(key);
+      list.push(HQ.normalizeGoal({ text, done: false, bucket: HQ.getActiveBucket() || null }));
+      setGoals(key, list);
+      textEl.value = '';
+      renderFuturePlan();
+    }
+    addBtn.addEventListener('click', add);
+    textEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); add(); }
+    });
+  })();
 
   // ---------- Push remaining ----------
   document.getElementById('gmPushBtn').addEventListener('click', () => {
@@ -2072,7 +2154,7 @@ body::after {
     renderBucketFilterRow();
     const projBucketInput = document.getElementById('projBucketInput');
     if (projBucketInput) projBucketInput.value = HQ.getActiveBucket() || '';
-    loadToday(); loadTomorrow();
+    loadToday(); loadTomorrow(); renderFuturePlan();
     renderProjects();
     renderNotes();
   });
@@ -2087,9 +2169,9 @@ body::after {
   processStreak();
   populateBucketSelect(document.getElementById('projBucketInput'), false);
   renderBucketFilterRow();
-  renderViewToggle();
   loadToday();
   loadTomorrow();
+  renderFuturePlan();
   renderStreak();
   updateDayRing();
   renderProjects();
