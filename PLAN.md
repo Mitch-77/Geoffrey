@@ -147,9 +147,12 @@ older than 7 days.
       days are recorded, so a missed day and a day before the habit existed
       look identical (empty cell) - the storage model has no per-day
       presence record for undone tasks, only a running missedDays counter.
-      Routine: a single configurable set of template tasks (name+bucket),
-      edited behind a collapsed "Edit" toggle; "Run Routine" adds all of
-      them to today in one tap. Open Loops: unfinished projects (reuses the
-      existing project card) + tasks with missedDays >= 7, for an
-      end-of-day scan. Pushed 2026-07-12. Not yet verified in a real
-      browser. This was the last phase in the original plan.
+      Open Loops: unfinished projects (reuses the existing project card) +
+      tasks with missedDays >= 7, for an end-of-day scan. Pushed 2026-07-12.
+      This was the last phase in the original plan.
+      Routine button was removed 2026-07-12 per user feedback: it duplicated
+      the existing per-task 🔁 daily-repeat toggle, but worse - Repeat is
+      fully automatic (no button press needed), Routine needed a manual tap
+      every day to do the same thing for multiple tasks. Tag each routine
+      task with 🔁 individually instead.
+      Not yet verified in a real browser.
