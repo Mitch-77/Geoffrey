@@ -105,7 +105,13 @@ older than 7 days.
       collapsible meta row (behind "..." under 640px), plus a Manual/Order view
       toggle on Today that auto-sorts by Eisenhower rank and persists. Pushed
       2026-07-11. Not yet verified in a real browser (see Phase 1 note).
-- [ ] Phase 3 — Time blocking (needs new day-tracker timeline — no existing one to hook into)
+- [x] Phase 3 — Time blocking. Built a new "Day Tracker" vertical timeline
+      (8am-12am) from scratch, positioned by each task's start time +
+      duration (new inline controls in the row meta section), overlapping
+      tasks side by side. Deliberately scoped out drag-to-move — pixel
+      math I can't visually verify without a browser — tapping a block
+      toggles it done instead, editing time/duration stays in the row's
+      own controls. Pushed 2026-07-11. Not yet verified in a real browser.
 - [ ] Phase 4 — Time tracking + Move the Needle
 - [ ] Phase 5 — Flow limit + Eat the Frog
 - [ ] Phase 6 — Dynamic journaling
