@@ -101,7 +101,10 @@ older than 7 days.
 
 - [x] Phase 0 — Data layer foundation (`hq-data.js`) created. Not yet wired into any page.
 - [x] Phase 1 — Life buckets + workspace filtering, projects, quick notes. Wired into `main.html`. Pushed 2026-07-11. **Not yet verified in a real browser** (no Node/Python/browser-automation tooling available in this environment) — verified by static cross-check (every `getElementById` target exists, no duplicate ids, balanced braces/parens, full manual re-read of the new code) instead. Please open the live page (or `main.html` locally) and sanity-check before Phase 2.
-- [ ] Phase 2 — Eisenhower + auto-sorted queue
+- [x] Phase 2 — Eisenhower Matrix pill selectors (Importance/Urgency/State) in a
+      collapsible meta row (behind "..." under 640px), plus a Manual/Order view
+      toggle on Today that auto-sorts by Eisenhower rank and persists. Pushed
+      2026-07-11. Not yet verified in a real browser (see Phase 1 note).
 - [ ] Phase 3 — Time blocking (needs new day-tracker timeline — no existing one to hook into)
 - [ ] Phase 4 — Time tracking + Move the Needle
 - [ ] Phase 5 — Flow limit + Eat the Frog
