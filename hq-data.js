@@ -189,6 +189,35 @@
     return 3;
   }
 
+  // ---------- Completed-task archive ----------
+  // main.html's rollover() deletes each day's whole goal list once it's no
+  // longer "today" - completed tasks would vanish along with it with no
+  // history at all. rollover() calls archiveCompletedTasks() first so Time
+  // Tracking / Move the Needle / Weekly Review have something to read.
+  const COMPLETED_LOG_KEY = 'hq:completedLog';
+  const COMPLETED_LOG_MAX_AGE_MS = 400 * 24 * 60 * 60 * 1000; // ~13 months
+  function getCompletedLog() { return storeGet(COMPLETED_LOG_KEY, []); }
+  function setCompletedLog(list) { storeSet(COMPLETED_LOG_KEY, list); }
+  function archiveCompletedTasks(dateStr, doneGoals) {
+    if (!doneGoals || !doneGoals.length) return;
+    const log = getCompletedLog();
+    doneGoals.forEach((g) => {
+      log.push({
+        id: g.id || uid(),
+        text: g.text,
+        bucket: g.bucket || null,
+        projectId: g.projectId || null,
+        importance: g.importance || 'not_important',
+        urgency: g.urgency || 'not_urgent',
+        minutes: g.minutes || null,
+        date: dateStr,
+        doneAt: g.doneAt || null,
+      });
+    });
+    const cutoff = Date.now() - COMPLETED_LOG_MAX_AGE_MS;
+    setCompletedLog(log.filter((e) => !e.doneAt || e.doneAt >= cutoff));
+  }
+
   // ---------- Daily recurring task templates ----------
   // A template is matched to a today-list goal by exact text. Kept separate
   // from the goal objects themselves since goals get recreated each day.
@@ -239,6 +268,7 @@
     normalizeGoal, eisenhowerRank,
     getActiveBucket, setActiveBucket,
     getDailyTemplates, setDailyTemplates, isDailyTemplate, addDailyTemplate, removeDailyTemplate,
+    getCompletedLog, setCompletedLog, archiveCompletedTasks,
     initSync,
   };
 })();

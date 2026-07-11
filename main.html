@@ -897,6 +897,35 @@ body::after {
 .note-delete:hover { opacity: 1; color: var(--danger); }
 .note-pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
+/* ===== Headquarters: Time Tracking ===== */
+.tt-card { margin-bottom: 18px; }
+.tt-card:last-child { margin-bottom: 0; }
+.tt-card-title {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 10px;
+}
+.tt-bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.tt-bar-label {
+  width: 100px; flex-shrink: 0;
+  font-size: 12px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.tt-bar-track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.tt-bar-fill { height: 100%; background: linear-gradient(90deg, #6BE3A4, #7DD3FC); border-radius: 4px; }
+.tt-bar-value {
+  flex-shrink: 0; width: 48px; text-align: right;
+  font-family: var(--font-mono); font-size: 11px; color: var(--text-tertiary);
+}
+@media (max-width: 480px) { .tt-bar-label { width: 72px; font-size: 11px; } }
+
+/* ===== Headquarters: Move the Needle ===== */
+.mtn-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.mtn-row-text { font-size: 13px; color: var(--text-primary); min-width: 0; overflow-wrap: break-word; }
+.mtn-row-tags { font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; white-space: nowrap; }
+
 /* ===== Headquarters: Quick Note FAB ===== */
 .qn-fab {
   position: fixed;
@@ -942,6 +971,19 @@ body::after {
 }
 .toast.show { opacity: 1; transform: translateY(0) scale(1); }
 .toast-icon { font-size: 15px; flex-shrink: 0; }
+.toast.toast-minutes { flex-direction: column; align-items: stretch; gap: 8px; }
+.toast-chip-row { display: flex; gap: 6px; }
+.toast-chip {
+  flex: 1;
+  border: 1px solid rgba(255,255,255,0.14);
+  background: rgba(255,255,255,0.06);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 12px; font-weight: 700;
+  padding: 7px 0; border-radius: 8px; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.toast-chip:hover { background: rgba(255,255,255,0.12); }
+.toast-chip:active { transform: scale(0.96); }
 
 /* ===== Headquarters: Modal ===== */
 .modal-bg {
@@ -1197,6 +1239,34 @@ body::after {
     <div class="empty-state" id="notesEmpty">No notes yet.</div>
   </div>
 
+  <div class="section">
+    <div class="section-title">Time Tracking</div>
+    <div class="gm-card">
+      <div class="tt-card">
+        <div class="tt-card-title">This week — by bucket</div>
+        <div id="ttWeekByBucket"></div>
+      </div>
+      <div class="tt-card">
+        <div class="tt-card-title">This week — by project</div>
+        <div id="ttWeekByProject"></div>
+      </div>
+      <div class="tt-card">
+        <div class="tt-card-title">This month — by bucket</div>
+        <div id="ttMonthByBucket"></div>
+      </div>
+      <div class="tt-card">
+        <div class="tt-card-title">This month — by project</div>
+        <div id="ttMonthByProject"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Move the Needle</div>
+    <div id="mtnGroups"></div>
+    <div class="empty-state" id="mtnEmpty">No move-the-needle tasks completed yet.</div>
+  </div>
+
   <button type="button" class="qn-fab" id="qnFab" aria-label="Quick note">✎</button>
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
@@ -1353,6 +1423,10 @@ body::after {
       const dateStr = k.slice('goals:'.length);
       if (dateStr >= todayDateStr) return;
       const old = getGoals(k);
+      // The whole day's list gets deleted below - archive completed tasks
+      // first or Time Tracking/Move the Needle/Weekly Review have nothing
+      // to read once a day rolls past.
+      HQ.archiveCompletedTasks(dateStr, old.filter(g => g.done));
       old.forEach(g => {
         if (!g.done && g.text && !texts.has(g.text)) {
           // Preserve everything (bucket/project/id/priority/schedule) - only
@@ -1707,12 +1781,8 @@ body::after {
     cb.checked = !!goal.done;
     if (readOnly) { cb.disabled = true; cb.title = 'Activates at 6 AM tomorrow'; }
     cb.addEventListener('change', () => {
-      const list = getGoals(key);
-      if (!list[idx]) return;
-      list[idx].done = cb.checked;
-      if (cb.checked) list[idx].doneAt = Date.now();
-      else delete list[idx].doneAt;
-      setGoals(key, list);
+      if (cb.checked) completeGoal(key, goal.id);
+      else uncompleteGoal(key, goal.id);
       reload();
     });
     main.appendChild(cb);
@@ -1972,6 +2042,8 @@ body::after {
     const goals = getGoals(todayKey());
     renderListInto(goals, document.getElementById('goalList'), document.getElementById('emptyState'), todayKey(), false);
     renderDayTracker();
+    renderTimeTracking();
+    renderMoveTheNeedle();
   }
 
   // ---------- Day Tracker: visual timeline for today's scheduled tasks ----------
@@ -2147,12 +2219,10 @@ body::after {
       block.classList.remove('dragging');
       if (longPressFired) return;
       if (!moved) {
-        const list = getGoals(todayKey());
-        if (!list[geom.i]) return;
-        list[geom.i].done = !list[geom.i].done;
-        if (list[geom.i].done) list[geom.i].doneAt = Date.now();
-        else delete list[geom.i].doneAt;
-        setGoals(todayKey(), list);
+        const current = getGoals(todayKey()).find(x => x.id === geom.goalId);
+        if (!current) return;
+        if (current.done) uncompleteGoal(todayKey(), geom.goalId);
+        else completeGoal(todayKey(), geom.goalId);
         loadToday();
         return;
       }
@@ -2911,6 +2981,189 @@ body::after {
       el.classList.remove('show');
       setTimeout(() => el.remove(), 320);
     }, 5000);
+  }
+
+  // ---------- Task completion + one-tap minutes (Time Tracking) ----------
+  // Zero-friction rule: if the task already had a duration set, use it
+  // silently - no extra prompt. Only ask when there's nothing to go on,
+  // and asking means a handful of tap-once chips, never a form.
+  function completeGoal(key, id) {
+    const list = getGoals(key);
+    const g = list.find(x => x.id === id);
+    if (!g) return;
+    g.done = true;
+    g.doneAt = Date.now();
+    if (g.durationMinutes && !g.minutes) g.minutes = g.durationMinutes;
+    setGoals(key, list);
+    if (!g.durationMinutes) showMinutesPrompt(key, id, g.text);
+  }
+  function uncompleteGoal(key, id) {
+    const list = getGoals(key);
+    const g = list.find(x => x.id === id);
+    if (!g) return;
+    g.done = false;
+    delete g.doneAt;
+    setGoals(key, list);
+  }
+  function showMinutesPrompt(key, goalId, text) {
+    const stack = document.getElementById('toastStack');
+    if (!stack) return;
+    const el = document.createElement('div');
+    el.className = 'toast toast-minutes';
+    const label = document.createElement('span');
+    label.textContent = 'How long did "' + (text.length > 28 ? text.slice(0, 28) + '…' : text) + '" take?';
+    el.appendChild(label);
+    const chipRow = document.createElement('div');
+    chipRow.className = 'toast-chip-row';
+    [15, 30, 60, 90].forEach(m => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'toast-chip';
+      chip.textContent = m + 'm';
+      chip.addEventListener('click', () => {
+        const list = getGoals(key);
+        const g = list.find(x => x.id === goalId);
+        if (g) { g.minutes = m; setGoals(key, list); }
+        dismiss();
+      });
+      chipRow.appendChild(chip);
+    });
+    el.appendChild(chipRow);
+    stack.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    function dismiss() {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 320);
+    }
+    setTimeout(dismiss, 8000);
+  }
+
+  // ---------- Time Tracking + Move the Needle ----------
+  function startOfWeekStr(dateStr) {
+    const d = new Date(dateStr + 'T00:00:00');
+    const day = d.getDay();
+    d.setDate(d.getDate() - (day === 0 ? 6 : day - 1)); // Monday-start week
+    return dateToKey(d);
+  }
+  function startOfMonthStr(dateStr) {
+    return dateStr.slice(0, 7) + '-01';
+  }
+  function formatMinutes(mins) {
+    const h = Math.floor(mins / 60), m = mins % 60;
+    if (h === 0) return m + 'm';
+    if (m === 0) return h + 'h';
+    return h + 'h ' + m + 'm';
+  }
+  // Combines the archive (already-rolled-over days) with today's live done
+  // tasks, which haven't been archived yet since rollover only runs once a
+  // day changes.
+  function getCompletedEntries() {
+    const archived = HQ.getCompletedLog();
+    const todayStr = getActiveDateString();
+    const todayDone = getGoals(todayKey()).filter(g => g.done).map(g => ({
+      id: g.id, text: g.text, bucket: g.bucket || null, projectId: g.projectId || null,
+      importance: g.importance || 'not_important', urgency: g.urgency || 'not_urgent',
+      minutes: g.minutes || null, date: todayStr, doneAt: g.doneAt || null,
+    }));
+    return archived.concat(todayDone);
+  }
+  function aggregateMinutesBy(entries, keyFn, labelFn) {
+    const totals = {};
+    entries.forEach(e => {
+      if (!e.minutes) return;
+      const k = keyFn(e) || '__none__';
+      totals[k] = (totals[k] || 0) + e.minutes;
+    });
+    return Object.keys(totals)
+      .map(k => ({ label: labelFn(k), minutes: totals[k] }))
+      .sort((a, b) => b.minutes - a.minutes);
+  }
+  function projectLabel(id) {
+    const p = HQ.getProjects().find(x => x.id === id);
+    return p ? p.name : 'Deleted project';
+  }
+  function renderBarList(container, rows) {
+    container.innerHTML = '';
+    if (!rows.length) { container.innerHTML = '<div class="empty-state">Nothing tracked yet.</div>'; return; }
+    const max = Math.max.apply(null, rows.map(r => r.minutes));
+    rows.forEach(r => {
+      const row = document.createElement('div');
+      row.className = 'tt-bar-row';
+      const label = document.createElement('div');
+      label.className = 'tt-bar-label';
+      label.textContent = r.label;
+      row.appendChild(label);
+      const track = document.createElement('div');
+      track.className = 'tt-bar-track';
+      const fill = document.createElement('div');
+      fill.className = 'tt-bar-fill';
+      fill.style.width = (max ? (r.minutes / max * 100) : 0) + '%';
+      track.appendChild(fill);
+      row.appendChild(track);
+      const value = document.createElement('div');
+      value.className = 'tt-bar-value';
+      value.textContent = formatMinutes(r.minutes);
+      row.appendChild(value);
+      container.appendChild(row);
+    });
+  }
+  function renderTimeTracking() {
+    const todayStr = getActiveDateString();
+    const weekStart = startOfWeekStr(todayStr);
+    const monthStart = startOfMonthStr(todayStr);
+    const entries = getCompletedEntries();
+    const weekEntries = entries.filter(e => e.date >= weekStart);
+    const monthEntries = entries.filter(e => e.date >= monthStart);
+
+    renderBarList(document.getElementById('ttWeekByBucket'),
+      aggregateMinutesBy(weekEntries, e => e.bucket, k => k === '__none__' ? 'No bucket' : bucketName(k)));
+    renderBarList(document.getElementById('ttWeekByProject'),
+      aggregateMinutesBy(weekEntries, e => e.projectId, k => k === '__none__' ? 'No project' : projectLabel(k)));
+    renderBarList(document.getElementById('ttMonthByBucket'),
+      aggregateMinutesBy(monthEntries, e => e.bucket, k => k === '__none__' ? 'No bucket' : bucketName(k)));
+    renderBarList(document.getElementById('ttMonthByProject'),
+      aggregateMinutesBy(monthEntries, e => e.projectId, k => k === '__none__' ? 'No project' : projectLabel(k)));
+  }
+  function renderMoveTheNeedle() {
+    const container = document.getElementById('mtnGroups');
+    container.innerHTML = '';
+    const entries = getCompletedEntries().filter(e => e.importance === 'move_the_needle');
+    if (!entries.length) {
+      document.getElementById('mtnEmpty').style.display = 'block';
+      return;
+    }
+    document.getElementById('mtnEmpty').style.display = 'none';
+
+    const byWeek = {};
+    entries.forEach(e => {
+      const wk = startOfWeekStr(e.date);
+      (byWeek[wk] = byWeek[wk] || []).push(e);
+    });
+    Object.keys(byWeek).sort().reverse().forEach(wk => {
+      const group = document.createElement('div');
+      group.className = 'future-date-group';
+      const header = document.createElement('div');
+      header.className = 'future-date-header';
+      header.textContent = 'Week of ' + formatDate(wk);
+      group.appendChild(header);
+      byWeek[wk].forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'mtn-row';
+        const text = document.createElement('span');
+        text.className = 'mtn-row-text';
+        text.textContent = e.text;
+        row.appendChild(text);
+        const tags = document.createElement('span');
+        tags.className = 'mtn-row-tags';
+        const parts = [];
+        if (e.bucket) parts.push(bucketName(e.bucket));
+        if (e.projectId) parts.push(projectLabel(e.projectId));
+        tags.textContent = parts.join(' · ');
+        row.appendChild(tags);
+        group.appendChild(row);
+      });
+      container.appendChild(group);
+    });
   }
 
   // Important habits missed several days running get one gentle nudge per

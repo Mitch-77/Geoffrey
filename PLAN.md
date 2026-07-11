@@ -112,7 +112,17 @@ older than 7 days.
       math I can't visually verify without a browser — tapping a block
       toggles it done instead, editing time/duration stays in the row's
       own controls. Pushed 2026-07-11. Not yet verified in a real browser.
-- [ ] Phase 4 — Time tracking + Move the Needle
+- [x] Phase 4 — Time tracking + Move the Needle. Required a prerequisite fix
+      first: rollover() was deleting each day's whole task list (including
+      completed tasks) once it rolled to the next day, leaving nothing to
+      compute history from. Added hq:completedLog (archived by rollover
+      before it deletes a day, capped ~13 months) as the historical source.
+      On check-off: silently uses durationMinutes if set, otherwise a
+      one-tap minute-chip toast (15/30/60/90m) - never a form. New Time
+      Tracking section (minutes by bucket/project, this week + month, bar
+      style) and Move the Needle section (move_the_needle completions
+      grouped by week with bucket/project tags). Pushed 2026-07-12. Not yet
+      verified in a real browser.
 - [ ] Phase 5 — Flow limit + Eat the Frog
 - [ ] Phase 6 — Dynamic journaling
 - [ ] Phase 7 — Habits, Routine button, Open Loops
