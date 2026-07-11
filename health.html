@@ -235,6 +235,7 @@ main {
 }
 .stack-item-tag.tag-stack { background: var(--tag-stack-bg); color: var(--tag-stack); }
 .stack-item-tag.tag-not-ordered { background: var(--warning-bg); color: var(--text-tertiary); }
+.stack-item-tag.tag-missed-streak { background: rgba(255,138,77,0.14); color: var(--warning); }
 
 .stack-low-btn {
   background: transparent;
@@ -654,6 +655,26 @@ main {
   function getLow() { return storeGet('stack:low') || []; }
   function setLow(arr) { storeSet('stack:low', arr); }
 
+  // Consecutive past full days this item wasn't taken at all (any window),
+  // walking back from yesterday - today doesn't count since it isn't over
+  // yet. Stops counting at the item's creation date so a supplement you
+  // just added doesn't show years of "missed" history. Capped at 30 days
+  // so old, rarely-used items don't produce a meaningless huge number.
+  function computeMissedDays(item) {
+    const cutoff = item.createdAt ? new Date(item.createdAt) : null;
+    let count = 0;
+    const d = new Date(getActiveDate() + 'T00:00:00');
+    for (let i = 0; i < 30; i++) {
+      d.setDate(d.getDate() - 1);
+      if (cutoff && d < cutoff) break;
+      const y = d.getFullYear(), m = String(d.getMonth() + 1).padStart(2, '0'), day = String(d.getDate()).padStart(2, '0');
+      const takenMap = storeGet(`stack:taken:${y}-${m}-${day}`) || {};
+      if (takenMap[item.id]) break;
+      count++;
+    }
+    return count;
+  }
+
   function toggleTaken(id) {
     const taken = getTaken();
     if (taken[id]) delete taken[id]; else taken[id] = Date.now();
@@ -683,7 +704,8 @@ main {
       dose: String(dose || '').trim(),
       window: ['morning','lunch','evening','anytime'].includes(windowKey) ? windowKey : 'anytime',
       note: String(note || '').trim(),
-      tag: null, ordered: true
+      tag: null, ordered: true,
+      createdAt: Date.now()
     });
     setItems(items);
     render();
@@ -732,6 +754,7 @@ main {
         const isTaken = !!taken[item.id];
         const isLow = low.includes(item.id);
         const isMissed = !isTaken && isPastCutoff;
+        const missedDays = computeMissedDays(item);
 
         const row = document.createElement('div');
         row.className = 'stack-item' + (isTaken ? ' taken' : '') + (isMissed ? ' missed' : '');
@@ -739,6 +762,7 @@ main {
         let tagHtml = '';
         if (item.tag === 'stack') tagHtml = '<span class="stack-item-tag tag-stack">stack</span>';
         else if (item.tag === 'not-ordered') tagHtml = '<span class="stack-item-tag tag-not-ordered">not ordered</span>';
+        if (missedDays > 0) tagHtml += `<span class="stack-item-tag tag-missed-streak">${missedDays}d missed</span>`;
 
         row.innerHTML = `
           <button class="stack-check ${isTaken ? 'checked' : ''}" data-action="toggle" data-id="${item.id}" aria-label="Mark taken">${isTaken ? '✓' : ''}</button>

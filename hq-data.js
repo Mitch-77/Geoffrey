@@ -174,6 +174,7 @@
     if (goal.minutes === undefined) goal.minutes = null;
     if (goal.startTime === undefined) goal.startTime = null;
     if (goal.durationMinutes === undefined) goal.durationMinutes = null;
+    if (goal.missedDays === undefined) goal.missedDays = 0;
     return goal;
   }
 

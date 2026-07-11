@@ -447,6 +447,16 @@ body::after {
   box-shadow: inset 3px 0 0 0 #F2C063;
 }
 .gm-row.gm-row-queued .gm-text { color: #FFE2A8; }
+.gm-row.gm-row-missed { background: rgba(242,192,99,0.045); }
+.gm-missed-badge {
+  flex-shrink: 0;
+  font-family: var(--font-mono);
+  font-size: 10px; font-weight: 700;
+  color: #F2C063;
+  background: rgba(242,192,99,0.12);
+  padding: 2px 7px; border-radius: 999px;
+  white-space: nowrap;
+}
 .gm-row.is-drag-over { border-top: 2px solid #6BE3A4; }
 .gm-row.is-queue-flashing { animation: gm-queue-flash 0.48s ease-out; }
 @keyframes gm-queue-flash {
@@ -501,6 +511,7 @@ body::after {
 
 .gm-text {
   flex: 1;
+  min-width: 0;
   font-size: 14px;
   color: var(--text-primary);
   cursor: text;
@@ -508,6 +519,7 @@ body::after {
   border-radius: 4px;
   padding: 2px 4px;
   margin: -2px -4px;
+  overflow-wrap: break-word; word-break: break-word;
 }
 .gm-text[contenteditable="true"] {
   outline: 1px solid rgba(255,255,255,0.18);
@@ -857,13 +869,19 @@ body::after {
 .notes-list { display: flex; flex-direction: column; gap: 8px; }
 .note-card {
   position: relative;
+  min-width: 0;
   padding: 12px 30px 12px 14px;
   border: 1px solid rgba(255,255,255,0.06);
   border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.10));
   border-radius: 12px;
   background: rgba(255,255,255,0.035);
+  box-sizing: border-box;
 }
-.note-content { font-size: 13.5px; color: var(--text-primary); white-space: pre-wrap; }
+.note-content {
+  font-size: 13.5px; color: var(--text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: break-word; word-break: break-word;
+}
 .note-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 5px; }
 .note-delete {
   position: absolute; top: 8px; right: 8px;
@@ -892,19 +910,56 @@ body::after {
 }
 .qn-fab:active { transform: scale(0.94); }
 
+/* ===== Headquarters: toast nudges (missed-habit escalation) ===== */
+.toast-stack {
+  position: fixed;
+  left: 50%; transform: translateX(-50%);
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  z-index: 200;
+  display: flex; flex-direction: column-reverse; gap: 8px;
+  align-items: center;
+  width: 100%; max-width: 340px; padding: 0 16px;
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: #17140f;
+  border: 1px solid rgba(242,192,99,0.30);
+  color: var(--text-primary);
+  font-size: 12.5px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  opacity: 0;
+  transform: translateY(10px) scale(0.95);
+  transition: opacity 0.25s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.toast.show { opacity: 1; transform: translateY(0) scale(1); }
+.toast-icon { font-size: 15px; flex-shrink: 0; }
+
 /* ===== Headquarters: Modal ===== */
 .modal-bg {
   display: none; position: fixed; inset: 0;
   background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
   z-index: 100; align-items: center; justify-content: center; padding: 20px;
+  opacity: 0;
+  transition: opacity 0.18s ease;
 }
-.modal-bg.show { display: flex; }
+.modal-bg.show { display: flex; opacity: 1; }
 .modal {
   width: 100%; max-width: 480px;
   background: #121214;
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 16px;
   padding: 22px; max-height: 88vh; overflow-y: auto;
+  transform: scale(0.92) translateY(10px);
+  opacity: 0;
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+}
+.modal-bg.show .modal {
+  transform: scale(1) translateY(0);
+  opacity: 1;
 }
 .modal.modal-wide { max-width: 620px; }
 .modal h3 { margin: 0 0 14px; font-size: 17px; font-weight: 700; color: var(--text-primary); }
@@ -1139,6 +1194,8 @@ body::after {
 
   <button type="button" class="qn-fab" id="qnFab" aria-label="Quick note">✎</button>
 
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
   <div class="modal-bg" id="qnModalBg">
     <div class="modal">
       <h3>Quick Note</h3>
@@ -1150,7 +1207,10 @@ body::after {
         <div class="field"><label>Bucket</label><select id="qnBucket"></select></div>
         <div class="field"><label>Project</label><select id="qnProject"></select></div>
       </div>
-      <div class="field"><label>Topic</label><input type="text" id="qnTopic" placeholder="Optional"></div>
+      <div class="field-row">
+        <div class="field"><label>Task</label><select id="qnTask"></select></div>
+        <div class="field"><label>Topic</label><input type="text" id="qnTopic" placeholder="Optional"></div>
+      </div>
       <div class="modal-actions">
         <button type="button" class="gm-polish" id="qnCancel">Cancel</button>
         <button type="button" class="gm-add" id="qnSave">Save</button>
@@ -1293,7 +1353,9 @@ body::after {
           // Preserve everything (bucket/project/id/priority/schedule) - only
           // reset done. Used to drop every field but text, silently wiping
           // bucket/project tags off any task left unfinished overnight.
-          today.push(Object.assign({}, g, { done: false }));
+          // missedDays counts consecutive unfinished carry-overs; it's what
+          // drives the "missed" badge and habit nudges below.
+          today.push(Object.assign({}, g, { done: false, missedDays: (g.missedDays || 0) + 1 }));
           texts.add(g.text);
         }
       });
@@ -1651,6 +1713,15 @@ body::after {
     text.textContent = goal.text;
     main.appendChild(text);
     makeInlineEdit(text, null, idx, key, reload);
+
+    if (goal.missedDays > 0 && !goal.done) {
+      li.classList.add('gm-row-missed');
+      const missedBadge = document.createElement('span');
+      missedBadge.className = 'gm-missed-badge';
+      missedBadge.textContent = '↻ ' + goal.missedDays + 'd';
+      missedBadge.title = 'Carried over ' + goal.missedDays + ' day' + (goal.missedDays === 1 ? '' : 's') + ' unfinished';
+      main.appendChild(missedBadge);
+    }
 
     const bucketSel = document.createElement('select');
     bucketSel.className = 'gm-bucket-select';
@@ -2775,6 +2846,7 @@ body::after {
     populateBucketSelect(document.getElementById('qnBucket'), true);
     document.getElementById('qnBucket').value = HQ.getActiveBucket() || '';
     populateProjectSelect(document.getElementById('qnProject'), document.getElementById('qnBucket').value || null);
+    populateTaskSelect(document.getElementById('qnTask'), document.getElementById('qnBucket').value || null);
     document.getElementById('qnContent').value = '';
     document.getElementById('qnTopic').value = '';
     document.getElementById('qnModalBg').classList.add('show');
@@ -2788,6 +2860,7 @@ body::after {
   });
   document.getElementById('qnBucket').addEventListener('change', (e) => {
     populateProjectSelect(document.getElementById('qnProject'), e.target.value || null);
+    populateTaskSelect(document.getElementById('qnTask'), e.target.value || null);
   });
   document.getElementById('qnSave').addEventListener('click', () => {
     const content = document.getElementById('qnContent').value.trim();
@@ -2796,6 +2869,7 @@ body::after {
       content,
       bucket: document.getElementById('qnBucket').value || null,
       projectId: document.getElementById('qnProject').value || null,
+      taskId: document.getElementById('qnTask').value || null,
       topic: document.getElementById('qnTopic').value.trim() || null,
     });
     closeQuickNote();
@@ -2815,6 +2889,48 @@ body::after {
     renderNotes();
   });
 
+  // ---------- Toast nudges ----------
+  function showToast(message, icon) {
+    const stack = document.getElementById('toastStack');
+    if (!stack) return;
+    const el = document.createElement('div');
+    el.className = 'toast';
+    const iconEl = document.createElement('span');
+    iconEl.className = 'toast-icon';
+    iconEl.textContent = icon || '⏰';
+    const textEl = document.createElement('span');
+    textEl.textContent = message;
+    el.appendChild(iconEl);
+    el.appendChild(textEl);
+    stack.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('show'));
+    setTimeout(() => {
+      el.classList.remove('show');
+      setTimeout(() => el.remove(), 320);
+    }, 5000);
+  }
+
+  // Important habits missed several days running get one gentle nudge per
+  // day (not a blocking alert) - throttled per task so reloading the page
+  // doesn't spam the same nudge repeatedly.
+  const HABIT_NUDGE_THRESHOLD = 3;
+  function checkMissedHabitNudges() {
+    const todayStr = getActiveDateString();
+    const nudged = storeGet('hq:habitNudges') || {};
+    let changed = false;
+    getGoals(todayKey()).forEach((g, i) => {
+      if (g.urgency !== 'habit' || g.importance === 'not_important') return;
+      if (!(g.missedDays >= HABIT_NUDGE_THRESHOLD)) return;
+      if (nudged[g.id] === todayStr) return;
+      setTimeout(() => {
+        showToast(g.text + ' — missed ' + g.missedDays + ' days running', '🔔');
+      }, i * 400);
+      nudged[g.id] = todayStr;
+      changed = true;
+    });
+    if (changed) storeSet('hq:habitNudges', nudged);
+  }
+
   // ---------- Boot ----------
   rollover();
   applyDailyTemplates();
@@ -2828,6 +2944,7 @@ body::after {
   updateDayRing();
   renderProjects();
   renderNotes();
+  checkMissedHabitNudges();
   setInterval(updateDayRing, 60 * 1000);
   startTicker();
 
