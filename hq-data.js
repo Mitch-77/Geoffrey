@@ -99,13 +99,14 @@
   const NOTES_KEY = 'hq:notes';
   function getNotes() { return storeGet(NOTES_KEY, []); }
   function setNotes(list) { storeSet(NOTES_KEY, list); }
-  function addNote({ content, bucket, projectId, topic }) {
+  function addNote({ content, bucket, projectId, taskId, topic }) {
     const list = getNotes();
     const note = {
       id: uid(),
       content,
       bucket: bucket || null,
       projectId: projectId || null,
+      taskId: taskId || null,
       topic: topic || null,
       createdAt: new Date().toISOString(),
     };

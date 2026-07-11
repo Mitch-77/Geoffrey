@@ -872,7 +872,7 @@ body::after {
   padding: 2px 6px;
 }
 .note-delete:hover { opacity: 1; color: var(--danger); }
-.note-project-select { margin-top: 8px; }
+.note-pill-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 
 /* ===== Headquarters: Quick Note FAB ===== */
 .qn-fab {
@@ -1192,6 +1192,25 @@ body::after {
     </div>
   </div>
 
+  <div class="modal-bg" id="taskDetailModalBg">
+    <div class="modal">
+      <div class="modal-top">
+        <h3 id="taskDetailTitle">Task</h3>
+        <button type="button" class="modal-close-btn" id="taskDetailClose" aria-label="Close">×</button>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Start time</label><input type="time" id="taskDetailTime"></div>
+        <div class="field"><label>Duration</label><select id="taskDetailDuration"></select></div>
+      </div>
+      <div class="modal-section-title">Notes</div>
+      <div id="taskDetailNotes"></div>
+      <div class="proj-link-row">
+        <select id="taskDetailLinkNoteSelect"></select>
+        <button type="button" class="gm-polish" id="taskDetailLinkNoteBtn">Link note</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -1271,7 +1290,10 @@ body::after {
       const old = getGoals(k);
       old.forEach(g => {
         if (!g.done && g.text && !texts.has(g.text)) {
-          today.push({ text: g.text, done: false });
+          // Preserve everything (bucket/project/id/priority/schedule) - only
+          // reset done. Used to drop every field but text, silently wiping
+          // bucket/project tags off any task left unfinished overnight.
+          today.push(Object.assign({}, g, { done: false }));
           texts.add(g.text);
         }
       });
@@ -1997,7 +2019,7 @@ body::after {
       textEl.textContent = g.text;
       block.appendChild(textEl);
 
-      wireBlockInteraction(block, { i, top, height }, { pxPerHour, spanStart, spanEnd, totalPx });
+      wireBlockInteraction(block, { i, top, height, goalId: g.id }, { pxPerHour, spanStart, spanEnd, totalPx });
 
       timelineEl.appendChild(block);
     });
@@ -2005,23 +2027,38 @@ body::after {
 
   // Tap toggles done (existing behavior). Drag (press + move past a small
   // threshold) repositions the block's start time, snapped to 15 minutes.
+  const LONG_PRESS_MS = 550;
   function wireBlockInteraction(block, geom, span) {
     let dragging = false, moved = false, startY = 0, startTop = geom.top;
+    let longPressTimer = null, longPressFired = false;
     const snapPx = span.pxPerHour / 4;
+
+    function clearLongPress() {
+      if (longPressTimer) { clearTimeout(longPressTimer); longPressTimer = null; }
+    }
 
     block.addEventListener('pointerdown', (e) => {
       if (e.button !== undefined && e.button !== 0) return;
       dragging = true;
       moved = false;
+      longPressFired = false;
       startY = e.clientY;
       startTop = parseFloat(block.style.top) || 0;
       try { block.setPointerCapture(e.pointerId); } catch (err) {}
+      clearLongPress();
+      longPressTimer = setTimeout(() => {
+        if (dragging && !moved) {
+          longPressFired = true;
+          openTaskDetailModal(geom.goalId);
+        }
+      }, LONG_PRESS_MS);
     });
     block.addEventListener('pointermove', (e) => {
       if (!dragging) return;
       const dy = e.clientY - startY;
       if (!moved && Math.abs(dy) < 5) return;
       moved = true;
+      clearLongPress();
       e.preventDefault();
       block.classList.add('dragging');
       const rawTop = startTop + dy;
@@ -2032,7 +2069,9 @@ body::after {
     block.addEventListener('pointerup', (e) => {
       if (!dragging) return;
       dragging = false;
+      clearLongPress();
       block.classList.remove('dragging');
+      if (longPressFired) return;
       if (!moved) {
         const list = getGoals(todayKey());
         if (!list[geom.i]) return;
@@ -2057,9 +2096,109 @@ body::after {
     });
     block.addEventListener('pointercancel', () => {
       dragging = false;
+      clearLongPress();
       block.classList.remove('dragging');
     });
   }
+
+  // ---------- Task Detail modal (long-press a Day Tracker block) ----------
+  let activeTaskDetailId = null;
+  function findTodayGoalById(id) {
+    const list = getGoals(todayKey());
+    const idx = list.findIndex(g => g.id === id);
+    return { list, idx, goal: idx === -1 ? null : list[idx] };
+  }
+  function openTaskDetailModal(goalId) {
+    activeTaskDetailId = goalId;
+    renderTaskDetailModal();
+    document.getElementById('taskDetailModalBg').classList.add('show');
+  }
+  function closeTaskDetailModal() {
+    document.getElementById('taskDetailModalBg').classList.remove('show');
+    activeTaskDetailId = null;
+  }
+  function renderTaskDetailModal() {
+    const { goal } = findTodayGoalById(activeTaskDetailId);
+    if (!goal) { closeTaskDetailModal(); return; }
+    document.getElementById('taskDetailTitle').textContent = goal.text;
+    document.getElementById('taskDetailTime').value = goal.startTime || '';
+    const durSel = document.getElementById('taskDetailDuration');
+    durSel.innerHTML = DURATION_OPTIONS.map(o => '<option value="' + o.value + '">' + o.label + '</option>').join('');
+    durSel.value = goal.durationMinutes ? String(goal.durationMinutes) : '';
+    renderTaskDetailNotes();
+  }
+  function renderTaskDetailNotes() {
+    if (!activeTaskDetailId) return;
+    const listEl = document.getElementById('taskDetailNotes');
+    listEl.innerHTML = '';
+    HQ.getNotes().filter(n => n.taskId === activeTaskDetailId).slice().reverse().forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'proj-note-row';
+      const label = document.createElement('span');
+      label.className = 'proj-note-row-label';
+      label.textContent = n.content;
+      row.appendChild(label);
+      const unlinkBtn = document.createElement('button');
+      unlinkBtn.type = 'button';
+      unlinkBtn.className = 'proj-unlink-btn';
+      unlinkBtn.textContent = 'Unlink';
+      unlinkBtn.addEventListener('click', () => {
+        const notes = HQ.getNotes();
+        const note = notes.find(x => x.id === n.id);
+        if (note) { note.taskId = null; HQ.setNotes(notes); }
+        renderTaskDetailNotes();
+        renderNotes();
+      });
+      row.appendChild(unlinkBtn);
+      listEl.appendChild(row);
+    });
+    if (!listEl.children.length) listEl.innerHTML = '<div class="empty-state">No notes linked yet.</div>';
+
+    const linkSel = document.getElementById('taskDetailLinkNoteSelect');
+    linkSel.innerHTML = '';
+    const unlinked = HQ.getNotes().filter(n => n.taskId !== activeTaskDetailId);
+    if (unlinked.length) {
+      linkSel.disabled = false;
+      unlinked.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.id;
+        opt.textContent = n.content.length > 44 ? n.content.slice(0, 44) + '…' : n.content;
+        linkSel.appendChild(opt);
+      });
+    } else {
+      linkSel.disabled = true;
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = 'No notes to link';
+      linkSel.appendChild(opt);
+    }
+  }
+  document.getElementById('taskDetailClose').addEventListener('click', closeTaskDetailModal);
+  document.getElementById('taskDetailModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'taskDetailModalBg') closeTaskDetailModal();
+  });
+  document.getElementById('taskDetailTime').addEventListener('change', (e) => {
+    const { list, idx } = findTodayGoalById(activeTaskDetailId);
+    if (idx === -1) return;
+    list[idx].startTime = e.target.value || null;
+    setGoals(todayKey(), list);
+    loadToday();
+  });
+  document.getElementById('taskDetailDuration').addEventListener('change', (e) => {
+    const { list, idx } = findTodayGoalById(activeTaskDetailId);
+    if (idx === -1) return;
+    list[idx].durationMinutes = e.target.value ? parseInt(e.target.value, 10) : null;
+    setGoals(todayKey(), list);
+    loadToday();
+  });
+  document.getElementById('taskDetailLinkNoteBtn').addEventListener('click', () => {
+    const sel = document.getElementById('taskDetailLinkNoteSelect');
+    if (!sel.value || !activeTaskDetailId) return;
+    const notes = HQ.getNotes();
+    const note = notes.find(x => x.id === sel.value);
+    if (note) { note.taskId = activeTaskDetailId; HQ.setNotes(notes); }
+    renderTaskDetailNotes();
+    renderNotes();
+  });
   function loadTomorrow() {
     const goals = getGoals(tomorrowKey());
     renderListInto(goals, document.getElementById('tomorrowList'), document.getElementById('tomorrowEmpty'), tomorrowKey(), true);
@@ -2216,6 +2355,31 @@ body::after {
         opt.value = p.id; opt.textContent = p.name;
         sel.appendChild(opt);
       });
+  }
+
+  function findGoalById(id) {
+    if (!id) return null;
+    for (const key of storeListKeys('goals:')) {
+      const g = getGoals(key).find(x => x.id === id);
+      if (g) return g;
+    }
+    return null;
+  }
+  function populateTaskSelect(sel, bucketFilter) {
+    sel.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = ''; none.textContent = 'No task';
+    sel.appendChild(none);
+    storeListKeys('goals:').sort().forEach(key => {
+      getGoals(key)
+        .filter(g => !bucketFilter || g.bucket === bucketFilter)
+        .forEach(g => {
+          const opt = document.createElement('option');
+          opt.value = g.id;
+          opt.textContent = g.text + ' — ' + goalDateLabel(key);
+          sel.appendChild(opt);
+        });
+    });
   }
 
   function renderBucketFilterRow() {
@@ -2558,10 +2722,14 @@ body::after {
       const metaParts = [];
       if (n.bucket) metaParts.push(bucketName(n.bucket));
       if (n.topic) metaParts.push(n.topic);
+      const linkedTask = findGoalById(n.taskId);
+      if (linkedTask) metaParts.push('📎 ' + linkedTask.text);
       meta.textContent = metaParts.join(' · ') || ' ';
       card.appendChild(meta);
+      const pillRow = document.createElement('div');
+      pillRow.className = 'note-pill-row';
       const projSel = document.createElement('select');
-      projSel.className = 'gm-pill-select note-project-select';
+      projSel.className = 'gm-pill-select';
       populateProjectSelect(projSel, n.bucket);
       projSel.value = n.projectId || '';
       projSel.addEventListener('change', () => {
@@ -2572,7 +2740,22 @@ body::after {
         HQ.setNotes(notes);
         if (activeProjectId) renderProjectModal();
       });
-      card.appendChild(projSel);
+      pillRow.appendChild(projSel);
+      const taskSel = document.createElement('select');
+      taskSel.className = 'gm-pill-select';
+      populateTaskSelect(taskSel, n.bucket);
+      taskSel.value = n.taskId || '';
+      taskSel.addEventListener('change', () => {
+        const notes = HQ.getNotes();
+        const note = notes.find(x => x.id === n.id);
+        if (!note) return;
+        note.taskId = taskSel.value || null;
+        HQ.setNotes(notes);
+        if (activeTaskDetailId) renderTaskDetailNotes();
+        renderNotes();
+      });
+      pillRow.appendChild(taskSel);
+      card.appendChild(pillRow);
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'note-delete';
