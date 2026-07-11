@@ -239,6 +239,19 @@
     setDailyTemplates(getDailyTemplates().filter((t) => t.text !== text));
   }
 
+  // ---------- Routine (a fixed set of tasks generated in one tap) ----------
+  const ROUTINE_KEY = 'hq:routineTemplates';
+  function getRoutineTemplates() { return storeGet(ROUTINE_KEY, []); }
+  function setRoutineTemplates(list) { storeSet(ROUTINE_KEY, list); }
+  function addRoutineItem({ text, bucket, projectId, state }) {
+    const list = getRoutineTemplates();
+    list.push({ id: uid(), text, bucket: bucket || null, projectId: projectId || null, state: state || null });
+    setRoutineTemplates(list);
+  }
+  function removeRoutineItem(id) {
+    setRoutineTemplates(getRoutineTemplates().filter((x) => x.id !== id));
+  }
+
   // ---------- Active bucket filter (workspace filtering) ----------
   const ACTIVE_BUCKET_KEY = 'hq:activeBucket';
   function getActiveBucket() { return storeGet(ACTIVE_BUCKET_KEY, null); } // null = "All"
@@ -271,6 +284,7 @@
     getActiveBucket, setActiveBucket,
     getDailyTemplates, setDailyTemplates, isDailyTemplate, addDailyTemplate, removeDailyTemplate,
     getCompletedLog, setCompletedLog, archiveCompletedTasks,
+    getRoutineTemplates, setRoutineTemplates, addRoutineItem, removeRoutineItem,
     initSync,
   };
 })();

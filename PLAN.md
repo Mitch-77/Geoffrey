@@ -140,4 +140,16 @@ older than 7 days.
       re-transcription. Same modal pattern as the rest of the app. Entry list
       shows newest first, in full. Pushed 2026-07-12. Not yet verified in a
       real browser.
-- [ ] Phase 7 — Habits, Routine button, Open Loops
+- [x] Phase 7 — Habits, Routine button, Open Loops.
+      Habit Tracker: 14-day calendar grid (habit rows x day columns) with a
+      current streak per habit, built from urgency='habit' tasks found in
+      today's list + the completed-task archive. Known limit: only "done"
+      days are recorded, so a missed day and a day before the habit existed
+      look identical (empty cell) - the storage model has no per-day
+      presence record for undone tasks, only a running missedDays counter.
+      Routine: a single configurable set of template tasks (name+bucket),
+      edited behind a collapsed "Edit" toggle; "Run Routine" adds all of
+      them to today in one tap. Open Loops: unfinished projects (reuses the
+      existing project card) + tasks with missedDays >= 7, for an
+      end-of-day scan. Pushed 2026-07-12. Not yet verified in a real
+      browser. This was the last phase in the original plan.

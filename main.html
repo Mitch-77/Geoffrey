@@ -963,6 +963,64 @@ body::after {
 }
 .journal-qa-a { font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: break-word; }
 
+/* ===== Headquarters: Routine ===== */
+.routine-row { display: flex; gap: 8px; flex-wrap: wrap; }
+.routine-edit-panel { margin-top: 14px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.06); }
+.routine-item-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+  font-size: 13px; color: var(--text-secondary);
+}
+.routine-add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.routine-add-row input[type="text"] {
+  flex: 1; min-width: 140px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 13px;
+  outline: none;
+}
+.routine-add-row select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding: 10px 28px 10px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background-color: rgba(0,0,0,0.28);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text-primary);
+  font-family: inherit; font-size: 13px;
+  cursor: pointer;
+}
+
+/* ===== Headquarters: Habit Tracker ===== */
+.habit-grid-wrap { overflow-x: auto; padding-bottom: 4px; }
+.habit-grid { display: grid; gap: 4px; align-items: center; min-width: 480px; }
+.habit-grid-day-label {
+  font-family: var(--font-mono); font-size: 9px; color: var(--text-tertiary);
+  text-align: center;
+}
+.habit-grid-name {
+  font-size: 12px; color: var(--text-secondary);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  padding-right: 8px;
+}
+.habit-grid-streak { color: var(--warning); font-weight: 700; }
+.habit-grid-cell {
+  aspect-ratio: 1; border-radius: 5px;
+  background: rgba(255,255,255,0.05);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; color: var(--text-tertiary);
+}
+.habit-grid-cell.done {
+  background: rgba(107,227,164,0.22);
+  color: #6BE3A4;
+  box-shadow: 0 0 6px rgba(107,227,164,0.30);
+}
+
 /* ===== Headquarters: Quick Note FAB ===== */
 .qn-fab {
   position: fixed;
@@ -1286,6 +1344,22 @@ body::after {
   </div>
 
   <div class="section">
+    <div class="section-title">Routine</div>
+    <div class="routine-row">
+      <button type="button" class="gm-add" id="routineRunBtn">▶ Run Routine</button>
+      <button type="button" class="gm-polish" id="routineEditBtn">Edit</button>
+    </div>
+    <div id="routineEditPanel" class="routine-edit-panel" style="display:none;">
+      <div id="routineItems"></div>
+      <div class="routine-add-row">
+        <input type="text" id="routineItemInput" placeholder="Task name…" autocomplete="off">
+        <select id="routineItemBucket"></select>
+        <button type="button" class="gm-polish" id="routineItemAddBtn">+ Add</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Notes</div>
     <div class="notes-list" id="notesList"></div>
     <div class="empty-state" id="notesEmpty">No notes yet.</div>
@@ -1327,6 +1401,23 @@ body::after {
     </div>
     <div id="journalEntries"></div>
     <div class="empty-state" id="journalEmpty">No journal entries yet.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Habit Tracker</div>
+    <div class="habit-grid-wrap">
+      <div id="habitGrid"></div>
+    </div>
+    <div class="empty-state" id="habitEmpty">No habits tracked yet — set a task's Urgency to "Habit" to see it here.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Open Loops</div>
+    <div class="modal-section-title">Unfinished projects</div>
+    <div class="proj-list" id="openLoopsProjects"></div>
+    <div class="modal-section-title">Tasks stuck 7+ days</div>
+    <div id="openLoopsTasks"></div>
+    <div class="empty-state" id="openLoopsEmpty">Nothing open — you're all caught up.</div>
   </div>
 
   <button type="button" class="qn-fab" id="qnFab" aria-label="Quick note">✎</button>
@@ -2169,6 +2260,8 @@ body::after {
     renderTimeTracking();
     renderMoveTheNeedle();
     renderFlowBanner();
+    renderHabitTracker();
+    renderOpenLoops();
   }
 
   // ---------- Flow limit (>2 flow tasks/day nudges you to defer one) ----------
@@ -2755,6 +2848,7 @@ body::after {
       groupsEl.appendChild(list);
     });
     document.getElementById('projEmpty').style.display = any ? 'none' : 'block';
+    renderOpenLoops();
   }
 
   document.getElementById('projStatusInput').addEventListener('change', (e) => {
@@ -3470,6 +3564,171 @@ body::after {
     if (changed) storeSet('hq:habitNudges', nudged);
   }
 
+  // ---------- Routine (one-tap batch add of a fixed task set) ----------
+  function renderRoutineItems() {
+    const container = document.getElementById('routineItems');
+    container.innerHTML = '';
+    const items = HQ.getRoutineTemplates();
+    document.getElementById('routineRunBtn').textContent = '▶ Run Routine (' + items.length + ')';
+    if (!items.length) {
+      container.innerHTML = '<div class="empty-state">No routine tasks yet — add one below.</div>';
+      return;
+    }
+    items.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'routine-item-row';
+      const label = document.createElement('span');
+      label.textContent = item.text + (item.bucket ? ' · ' + bucketName(item.bucket) : '');
+      row.appendChild(label);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'proj-unlink-btn';
+      del.textContent = 'Remove';
+      del.addEventListener('click', () => { HQ.removeRoutineItem(item.id); renderRoutineItems(); });
+      row.appendChild(del);
+      container.appendChild(row);
+    });
+  }
+  document.getElementById('routineEditBtn').addEventListener('click', () => {
+    const panel = document.getElementById('routineEditPanel');
+    const opening = panel.style.display === 'none';
+    panel.style.display = opening ? 'block' : 'none';
+    if (opening) populateBucketSelect(document.getElementById('routineItemBucket'), true);
+  });
+  document.getElementById('routineItemAddBtn').addEventListener('click', () => {
+    const input = document.getElementById('routineItemInput');
+    const text = input.value.trim();
+    if (!text) return;
+    HQ.addRoutineItem({ text, bucket: document.getElementById('routineItemBucket').value || null });
+    input.value = '';
+    renderRoutineItems();
+  });
+  document.getElementById('routineRunBtn').addEventListener('click', () => {
+    const items = HQ.getRoutineTemplates();
+    if (!items.length) { showToast('Add routine tasks first (Edit)', '⚙️'); return; }
+    const list = getGoals(todayKey());
+    items.forEach(item => {
+      list.push(HQ.normalizeGoal({
+        text: item.text, done: false, bucket: item.bucket, projectId: item.projectId, state: item.state,
+      }));
+    });
+    setGoals(todayKey(), list);
+    loadToday();
+    showToast('Added ' + items.length + ' routine tasks', '▶️');
+  });
+
+  // ---------- Habit Tracker ----------
+  // Only positive "done" days are recorded (in hq:completedLog or today's
+  // live list) - a missed day and a day the habit didn't exist yet look
+  // the same (an empty cell). That's a real limit of the storage model,
+  // not a bug: rollover only preserves undone tasks as one evolving
+  // object, not a per-day record, so there's nothing to distinguish them.
+  const HABIT_LOOKBACK_DAYS = 14;
+  function getHabitTexts() {
+    const cutoff = dateToKey((() => { const d = new Date(getActiveDateString() + 'T00:00:00'); d.setDate(d.getDate() - HABIT_LOOKBACK_DAYS); return d; })());
+    const set = new Set();
+    HQ.getCompletedLog().forEach(e => { if (e.urgency === 'habit' && e.date >= cutoff) set.add(e.text); });
+    getGoals(todayKey()).forEach(g => { if (g.urgency === 'habit') set.add(g.text); });
+    return Array.from(set);
+  }
+  function isHabitDoneOnDate(text, dateStr) {
+    if (dateStr === getActiveDateString()) {
+      return getGoals(todayKey()).some(g => g.text === text && g.done);
+    }
+    return HQ.getCompletedLog().some(e => e.text === text && e.date === dateStr);
+  }
+  function computeHabitStreak(text) {
+    let streak = 0;
+    const d = new Date(getActiveDateString() + 'T00:00:00');
+    for (let i = 0; i < 365; i++) {
+      if (!isHabitDoneOnDate(text, dateToKey(d))) break;
+      streak++;
+      d.setDate(d.getDate() - 1);
+    }
+    return streak;
+  }
+  function renderHabitTracker() {
+    const container = document.getElementById('habitGrid');
+    container.innerHTML = '';
+    const habits = getHabitTexts();
+    if (!habits.length) { document.getElementById('habitEmpty').style.display = 'block'; return; }
+    document.getElementById('habitEmpty').style.display = 'none';
+
+    const days = [];
+    const today = new Date(getActiveDateString() + 'T00:00:00');
+    for (let i = HABIT_LOOKBACK_DAYS - 1; i >= 0; i--) {
+      const d = new Date(today);
+      d.setDate(d.getDate() - i);
+      days.push(dateToKey(d));
+    }
+
+    const grid = document.createElement('div');
+    grid.className = 'habit-grid';
+    grid.style.gridTemplateColumns = '130px repeat(' + days.length + ', 1fr)';
+
+    grid.appendChild(document.createElement('div'));
+    days.forEach(d => {
+      const cell = document.createElement('div');
+      cell.className = 'habit-grid-day-label';
+      cell.textContent = String(new Date(d + 'T00:00:00').getDate());
+      grid.appendChild(cell);
+    });
+
+    habits.forEach(text => {
+      const nameCell = document.createElement('div');
+      nameCell.className = 'habit-grid-name';
+      const streak = computeHabitStreak(text);
+      nameCell.textContent = text;
+      if (streak > 0) {
+        const streakSpan = document.createElement('span');
+        streakSpan.className = 'habit-grid-streak';
+        streakSpan.textContent = ' ' + streak + '🔥';
+        nameCell.appendChild(streakSpan);
+      }
+      grid.appendChild(nameCell);
+      days.forEach(d => {
+        const cell = document.createElement('div');
+        const done = isHabitDoneOnDate(text, d);
+        cell.className = 'habit-grid-cell' + (done ? ' done' : '');
+        cell.textContent = done ? '✓' : '';
+        grid.appendChild(cell);
+      });
+    });
+    container.appendChild(grid);
+  }
+
+  // ---------- Open Loops (end-of-day review) ----------
+  const OPEN_LOOP_TASK_DAYS = 7;
+  function renderOpenLoops() {
+    const projContainer = document.getElementById('openLoopsProjects');
+    const taskContainer = document.getElementById('openLoopsTasks');
+    projContainer.innerHTML = '';
+    taskContainer.innerHTML = '';
+
+    const unfinishedProjects = HQ.getProjects().filter(p => p.status !== 'done');
+    unfinishedProjects.forEach(p => projContainer.appendChild(buildProjectCard(p)));
+    if (!unfinishedProjects.length) projContainer.innerHTML = '<div class="empty-state">No unfinished projects.</div>';
+
+    const stuckTasks = getGoals(todayKey()).filter(g => !g.done && g.missedDays >= OPEN_LOOP_TASK_DAYS);
+    stuckTasks.forEach(g => {
+      const row = document.createElement('div');
+      row.className = 'mtn-row';
+      const text = document.createElement('span');
+      text.className = 'mtn-row-text';
+      text.textContent = g.text;
+      row.appendChild(text);
+      const tags = document.createElement('span');
+      tags.className = 'mtn-row-tags';
+      tags.textContent = g.missedDays + 'd stuck';
+      row.appendChild(tags);
+      taskContainer.appendChild(row);
+    });
+    if (!stuckTasks.length) taskContainer.innerHTML = '<div class="empty-state">No long-stuck tasks.</div>';
+
+    document.getElementById('openLoopsEmpty').style.display =
+      (!unfinishedProjects.length && !stuckTasks.length) ? 'block' : 'none';
+  }
+
   // ---------- Boot ----------
   rollover();
   applyDailyTemplates();
@@ -3484,6 +3743,7 @@ body::after {
   renderProjects();
   renderNotes();
   renderJournalEntries();
+  renderRoutineItems();
   checkMissedHabitNudges();
   setInterval(updateDayRing, 60 * 1000);
   startTicker();
