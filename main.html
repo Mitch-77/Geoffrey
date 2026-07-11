@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#050506">
 <title>Mitch's Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="hq-data.js"></script>
 <script src="sync.js" defer></script>
 <script src="topbar.js" defer></script>
 <style>
@@ -593,12 +594,208 @@ body::after {
   .gm-card { padding: 16px; }
   .gm-progress-num { font-size: 36px; }
 }
+
+/* ===== Headquarters: bucket filter ===== */
+.bucket-filter-row {
+  display: flex; gap: 8px; overflow-x: auto;
+  padding-bottom: 4px; margin-bottom: 16px;
+  -ms-overflow-style: none; scrollbar-width: none;
+}
+.bucket-filter-row::-webkit-scrollbar { display: none; }
+.bucket-filter-pill {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 13px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 12px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.bucket-filter-pill:hover { background: rgba(255,255,255,0.07); }
+.bucket-filter-pill.active {
+  background: rgba(255,255,255,0.10);
+  border-color: var(--bucket-color, #FAFAFA);
+  color: var(--text-primary);
+}
+.bucket-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--bucket-color, var(--text-tertiary));
+  flex-shrink: 0;
+}
+
+/* ===== Headquarters: bucket select pill on task rows ===== */
+.gm-bucket-select {
+  flex-shrink: 0;
+  max-width: 88px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.10));
+  border-radius: 8px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer;
+}
+@media (max-width: 480px) {
+  .gm-bucket-select { max-width: 64px; font-size: 10px; padding: 5px 5px; }
+}
+
+/* ===== Headquarters: Projects ===== */
+.proj-add-row {
+  display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  margin-bottom: 14px;
+}
+.proj-add-row input[type="text"], .proj-add-row select, .proj-add-row input[type="date"] {
+  padding: 10px 12px;
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  background: rgba(0,0,0,0.28);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 13px;
+  outline: none;
+}
+.proj-add-row input[type="text"] { flex: 1; min-width: 140px; }
+.proj-group-title {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  margin: 14px 0 8px;
+}
+.proj-group-title:first-child { margin-top: 0; }
+.proj-list { display: flex; flex-direction: column; gap: 8px; }
+.proj-card {
+  display: block; width: 100%; text-align: left;
+  padding: 12px 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.10));
+  border-radius: 12px;
+  background: rgba(255,255,255,0.035);
+  color: var(--text-primary);
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.proj-card:hover { background: rgba(255,255,255,0.06); }
+.proj-card-name { font-size: 14px; font-weight: 700; margin-bottom: 3px; }
+.proj-card-meta { font-size: 11.5px; color: var(--text-tertiary); }
+
+/* ===== Headquarters: Notes ===== */
+.notes-list { display: flex; flex-direction: column; gap: 8px; }
+.note-card {
+  position: relative;
+  padding: 12px 30px 12px 14px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.10));
+  border-radius: 12px;
+  background: rgba(255,255,255,0.035);
+}
+.note-content { font-size: 13.5px; color: var(--text-primary); white-space: pre-wrap; }
+.note-meta { font-size: 11px; color: var(--text-tertiary); margin-top: 5px; }
+.note-delete {
+  position: absolute; top: 8px; right: 8px;
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 16px; cursor: pointer; opacity: 0.6;
+  padding: 2px 6px;
+}
+.note-delete:hover { opacity: 1; color: var(--danger); }
+
+/* ===== Headquarters: Quick Note FAB ===== */
+.qn-fab {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: calc(88px + env(safe-area-inset-bottom));
+  z-index: 45;
+  width: 50px; height: 50px;
+  border: 0; border-radius: 50%;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B;
+  font-size: 20px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 0.1s;
+}
+.qn-fab:active { transform: scale(0.94); }
+
+/* ===== Headquarters: Modal ===== */
+.modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+  z-index: 100; align-items: center; justify-content: center; padding: 20px;
+}
+.modal-bg.show { display: flex; }
+.modal {
+  width: 100%; max-width: 480px;
+  background: #121214;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  padding: 22px; max-height: 88vh; overflow-y: auto;
+}
+.modal.modal-wide { max-width: 620px; }
+.modal h3 { margin: 0 0 14px; font-size: 17px; font-weight: 700; color: var(--text-primary); }
+.modal-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.modal-top h3 { margin: 0; }
+.modal-close-btn {
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px;
+}
+.modal-close-btn:hover { color: var(--text-primary); }
+.modal-section-title {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
+  color: var(--text-tertiary); margin: 16px 0 8px;
+}
+.modal-section-title:first-of-type { margin-top: 0; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.field label {
+  font-size: 11px; color: var(--text-tertiary); font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.field input, .field select, .field textarea {
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 14px;
+  padding: 10px 12px; border-radius: 10px; outline: none;
+  resize: vertical;
+}
+.field input:focus, .field select:focus, .field textarea:focus {
+  border-color: rgba(255,255,255,0.28);
+}
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.proj-task-row, .proj-note-row {
+  font-size: 13px; color: var(--text-secondary);
+  padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+}
+.proj-task-row.done { color: var(--text-tertiary); text-decoration: line-through; }
+.bn-card {
+  padding: 10px 12px; margin-bottom: 8px;
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px; background: rgba(255,255,255,0.03);
+}
+.bn-card.resolved { opacity: 0.5; }
+.bn-problem { font-size: 13px; color: var(--text-primary); font-weight: 600; }
+.bn-fix { font-size: 12.5px; color: var(--text-secondary); margin-top: 3px; }
+.bn-actions { display: flex; gap: 8px; margin-top: 8px; }
+.bn-resolve, .bn-create-task-btn {
+  padding: 6px 10px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04); color: var(--text-secondary);
+  font-family: inherit; font-size: 11px; font-weight: 600; cursor: pointer;
+}
+.bn-resolve:hover, .bn-create-task-btn:hover { background: rgba(255,255,255,0.08); color: var(--text-primary); }
+.bn-add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+.bn-add-row input { flex: 1; min-width: 120px; }
 </style>
 </head>
 <body>
 <div class="page">
 
   <h1 class="dash-title">Mitch's Dashboard</h1>
+
+  <div class="bucket-filter-row" id="bucketFilterRow"></div>
 
   <div class="ticker-row">
     <div class="goal-ticker" id="goalTicker" aria-live="polite" aria-atomic="true">
@@ -691,6 +888,73 @@ body::after {
     </div>
   </div>
 
+  <div class="section">
+    <div class="section-title">Projects</div>
+    <div class="proj-add-row">
+      <input type="text" id="projNameInput" placeholder="New project name…" autocomplete="off">
+      <select id="projBucketInput"></select>
+      <select id="projStatusInput">
+        <option value="ongoing">Ongoing</option>
+        <option value="deadline">Deadline</option>
+        <option value="done">Done</option>
+      </select>
+      <input type="date" id="projDeadlineInput" style="display:none;">
+      <button type="button" class="gm-add" id="projAddBtn">+ Add</button>
+    </div>
+    <div class="proj-groups" id="projGroups"></div>
+    <div class="empty-state" id="projEmpty">No projects yet — add one above.</div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Notes</div>
+    <div class="notes-list" id="notesList"></div>
+    <div class="empty-state" id="notesEmpty">No notes yet.</div>
+  </div>
+
+  <button type="button" class="qn-fab" id="qnFab" aria-label="Quick note">✎</button>
+
+  <div class="modal-bg" id="qnModalBg">
+    <div class="modal">
+      <h3>Quick Note</h3>
+      <div class="field">
+        <label>Note</label>
+        <textarea id="qnContent" rows="4" placeholder="Jot it down…"></textarea>
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Bucket</label><select id="qnBucket"></select></div>
+        <div class="field"><label>Project</label><select id="qnProject"></select></div>
+      </div>
+      <div class="field"><label>Topic</label><input type="text" id="qnTopic" placeholder="Optional"></div>
+      <div class="modal-actions">
+        <button type="button" class="gm-polish" id="qnCancel">Cancel</button>
+        <button type="button" class="gm-add" id="qnSave">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="projModalBg">
+    <div class="modal modal-wide">
+      <div class="modal-top">
+        <h3 id="projModalTitle">Project</h3>
+        <button type="button" class="modal-close-btn" id="projModalClose" aria-label="Close">×</button>
+      </div>
+
+      <div class="modal-section-title">Tasks</div>
+      <div id="projModalTasks"></div>
+
+      <div class="modal-section-title">Notes</div>
+      <div id="projModalNotes"></div>
+
+      <div class="modal-section-title">Bottlenecks</div>
+      <div id="projModalBottlenecks"></div>
+      <div class="bn-add-row">
+        <input type="text" id="bnProblemInput" placeholder="What's blocking this?">
+        <input type="text" id="bnFixInput" placeholder="Fix (optional)">
+        <button type="button" class="gm-polish" id="bnAddBtn">+ Add</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -754,7 +1018,9 @@ body::after {
 
   function getGoals(key) {
     const g = storeGet(key);
-    return Array.isArray(g) ? g : [];
+    const list = Array.isArray(g) ? g : [];
+    list.forEach(HQ.normalizeGoal);
+    return list;
   }
   function setGoals(key, list) { storeSet(key, list); }
 
@@ -813,7 +1079,9 @@ body::after {
   let tickerTimer = null;
 
   function buildTickerItems() {
-    const goals = getGoals(todayKey());
+    const activeBucket = HQ.getActiveBucket();
+    const allGoals = getGoals(todayKey());
+    const goals = activeBucket ? allGoals.filter(g => g.bucket === activeBucket) : allGoals;
     const total = goals.length;
     const done  = goals.filter(g => g.done).length;
     if (total === 0) return { items: [{ status: 'empty',   text: 'No goals set for today — add one to get rolling.' }], done, total };
@@ -1065,6 +1333,21 @@ body::after {
     li.appendChild(text);
     makeInlineEdit(text, null, idx, key, reload);
 
+    const bucketSel = document.createElement('select');
+    bucketSel.className = 'gm-bucket-select';
+    populateBucketSelect(bucketSel, true);
+    bucketSel.value = goal.bucket || '';
+    bucketSel.style.setProperty('--bucket-color', bucketColor(goal.bucket));
+    if (readOnly) bucketSel.disabled = true;
+    bucketSel.addEventListener('change', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].bucket = bucketSel.value || null;
+      setGoals(key, list);
+      reload();
+    });
+    li.appendChild(bucketSel);
+
     const queueBtn = document.createElement('button');
     queueBtn.type = 'button';
     queueBtn.className = 'gm-queue-btn' + (goal.queued ? ' gm-queue-active' : '');
@@ -1100,7 +1383,9 @@ body::after {
 
   // ---------- Renderers ----------
   function renderTodayHeader() {
-    const goals = getGoals(todayKey());
+    const activeBucket = HQ.getActiveBucket();
+    const allGoals = getGoals(todayKey());
+    const goals = activeBucket ? allGoals.filter(g => g.bucket === activeBucket) : allGoals;
     const total = goals.length;
     const done  = goals.filter(g => g.done).length;
     document.getElementById('gmProgressNum').textContent   = done;
@@ -1135,7 +1420,9 @@ body::after {
   }
 
   function renderTomorrowCount() {
-    const list = getGoals(tomorrowKey());
+    const activeBucket = HQ.getActiveBucket();
+    const allList = getGoals(tomorrowKey());
+    const list = activeBucket ? allList.filter(g => g.bucket === activeBucket) : allList;
     document.getElementById('gmTomorrowCount').textContent = list.length + ' planned';
     document.getElementById('tomorrowLabel').textContent =
       'Plan tomorrow — ' + formatDate(getTomorrowDateString());
@@ -1143,26 +1430,32 @@ body::after {
 
   function renderListInto(goals, listEl, emptyEl, key, readOnly) {
     listEl.innerHTML = '';
-    emptyEl.style.display = goals.length === 0 ? 'block' : 'none';
+    const activeBucket = HQ.getActiveBucket();
+    // Keep each item's original index into the stored array (goals here is the
+    // full unfiltered list) so row handlers still write back to the right slot.
+    const indexed = goals
+      .map((g, i) => ({ g, i }))
+      .filter(({ g }) => !activeBucket || g.bucket === activeBucket);
+    emptyEl.style.display = indexed.length === 0 ? 'block' : 'none';
     const reload = () => (key === todayKey() ? loadToday() : loadTomorrow());
 
-    const visible = goals.length > 5 ? goals.slice(0, 5) : goals;
-    visible.forEach((g, i) => listEl.appendChild(buildGoalRow(g, i, key, readOnly, reload)));
+    const visible = indexed.length > 5 ? indexed.slice(0, 5) : indexed;
+    visible.forEach(({ g, i }) => listEl.appendChild(buildGoalRow(g, i, key, readOnly, reload)));
 
-    if (goals.length > 5) {
+    if (indexed.length > 5) {
       let expanded = false;
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'gm-show-toggle';
       const updateLabel = () => {
-        toggle.textContent = expanded ? 'Show less ▴' : ('Show ' + (goals.length - 5) + ' more ▾');
+        toggle.textContent = expanded ? 'Show less ▴' : ('Show ' + (indexed.length - 5) + ' more ▾');
       };
       updateLabel();
       toggle.addEventListener('click', () => {
         expanded = !expanded;
         if (expanded) {
-          goals.slice(5).forEach((g, i) => {
-            const row = buildGoalRow(g, i + 5, key, readOnly, reload);
+          indexed.slice(5).forEach(({ g, i }) => {
+            const row = buildGoalRow(g, i, key, readOnly, reload);
             listEl.insertBefore(row, toggle);
           });
         } else {
@@ -1291,13 +1584,333 @@ body::after {
     loadTomorrow
   );
 
+  // ---------- Headquarters: buckets, filter, projects, notes, quick note ----------
+  function bucketColor(id) {
+    const b = HQ.getBuckets().find(x => x.id === id);
+    return b ? b.color : 'rgba(255,255,255,0.10)';
+  }
+  function bucketName(id) {
+    const b = HQ.getBuckets().find(x => x.id === id);
+    return b ? b.name : 'No bucket';
+  }
+
+  function populateBucketSelect(sel, includeNone) {
+    const prev = sel.value;
+    sel.innerHTML = '';
+    if (includeNone) {
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = 'No bucket';
+      sel.appendChild(opt);
+    }
+    HQ.getBuckets().forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b.id; opt.textContent = b.name;
+      sel.appendChild(opt);
+    });
+    if (prev) sel.value = prev;
+  }
+  function populateProjectSelect(sel, bucketFilter) {
+    sel.innerHTML = '';
+    const none = document.createElement('option');
+    none.value = ''; none.textContent = 'No project';
+    sel.appendChild(none);
+    HQ.getProjects()
+      .filter(p => !bucketFilter || p.bucket === bucketFilter)
+      .forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.id; opt.textContent = p.name;
+        sel.appendChild(opt);
+      });
+  }
+
+  function renderBucketFilterRow() {
+    const row = document.getElementById('bucketFilterRow');
+    const active = HQ.getActiveBucket();
+    row.innerHTML = '';
+    const allPill = document.createElement('button');
+    allPill.type = 'button';
+    allPill.className = 'bucket-filter-pill' + (!active ? ' active' : '');
+    allPill.textContent = 'All';
+    allPill.addEventListener('click', () => HQ.setActiveBucket(null));
+    row.appendChild(allPill);
+    HQ.getBuckets().forEach(b => {
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'bucket-filter-pill' + (active === b.id ? ' active' : '');
+      pill.style.setProperty('--bucket-color', b.color);
+      pill.innerHTML = '<span class="bucket-dot"></span>' + b.name;
+      pill.addEventListener('click', () => HQ.setActiveBucket(b.id));
+      row.appendChild(pill);
+    });
+  }
+
+  // ---------- Projects ----------
+  function buildProjectCard(p) {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'proj-card';
+    card.style.setProperty('--bucket-color', bucketColor(p.bucket));
+    const name = document.createElement('div');
+    name.className = 'proj-card-name';
+    name.textContent = p.name;
+    card.appendChild(name);
+    const meta = document.createElement('div');
+    meta.className = 'proj-card-meta';
+    let metaText = bucketName(p.bucket);
+    if (p.status === 'deadline' && p.deadline) metaText += ' · due ' + p.deadline;
+    meta.textContent = metaText;
+    card.appendChild(meta);
+    card.addEventListener('click', () => openProjectModal(p.id));
+    return card;
+  }
+
+  function renderProjects() {
+    const activeBucket = HQ.getActiveBucket();
+    const groupsEl = document.getElementById('projGroups');
+    groupsEl.innerHTML = '';
+    const projects = HQ.getProjects().filter(p => !activeBucket || p.bucket === activeBucket);
+
+    const groups = [
+      { label: 'Deadline', items: projects.filter(p => p.status === 'deadline')
+          .sort((a, b) => (a.deadline || '9999').localeCompare(b.deadline || '9999')) },
+      { label: 'Ongoing',  items: projects.filter(p => p.status === 'ongoing') },
+      { label: 'Done',     items: projects.filter(p => p.status === 'done') },
+    ];
+
+    let any = false;
+    groups.forEach(group => {
+      if (group.items.length === 0) return;
+      any = true;
+      const title = document.createElement('div');
+      title.className = 'proj-group-title';
+      title.textContent = group.label + ' (' + group.items.length + ')';
+      groupsEl.appendChild(title);
+      const list = document.createElement('div');
+      list.className = 'proj-list';
+      group.items.forEach(p => list.appendChild(buildProjectCard(p)));
+      groupsEl.appendChild(list);
+    });
+    document.getElementById('projEmpty').style.display = any ? 'none' : 'block';
+  }
+
+  document.getElementById('projStatusInput').addEventListener('change', (e) => {
+    document.getElementById('projDeadlineInput').style.display = e.target.value === 'deadline' ? '' : 'none';
+  });
+  document.getElementById('projAddBtn').addEventListener('click', () => {
+    const nameEl = document.getElementById('projNameInput');
+    const name = nameEl.value.trim();
+    if (!name) return;
+    const bucket = document.getElementById('projBucketInput').value || null;
+    const status = document.getElementById('projStatusInput').value;
+    const deadlineEl = document.getElementById('projDeadlineInput');
+    const deadline = status === 'deadline' && deadlineEl.value ? deadlineEl.value : null;
+    HQ.addProject({ name, bucket, status, deadline });
+    nameEl.value = '';
+    deadlineEl.value = '';
+    renderProjects();
+  });
+
+  // ---------- Project detail modal ----------
+  let activeProjectId = null;
+  function openProjectModal(id) {
+    activeProjectId = id;
+    renderProjectModal();
+    document.getElementById('projModalBg').classList.add('show');
+  }
+  function closeProjectModal() {
+    document.getElementById('projModalBg').classList.remove('show');
+    activeProjectId = null;
+  }
+  document.getElementById('projModalClose').addEventListener('click', closeProjectModal);
+  document.getElementById('projModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'projModalBg') closeProjectModal();
+  });
+
+  function renderProjectModal() {
+    const p = HQ.getProjects().find(x => x.id === activeProjectId);
+    if (!p) { closeProjectModal(); return; }
+    document.getElementById('projModalTitle').textContent = p.name;
+
+    const taskListEl = document.getElementById('projModalTasks');
+    taskListEl.innerHTML = '';
+    [todayKey(), tomorrowKey()].forEach(key => {
+      getGoals(key).forEach((g) => {
+        if (g.projectId !== p.id) return;
+        const row = document.createElement('div');
+        row.className = 'proj-task-row' + (g.done ? ' done' : '');
+        row.textContent = (g.done ? '✓ ' : '○ ') + g.text;
+        taskListEl.appendChild(row);
+      });
+    });
+    if (!taskListEl.children.length) taskListEl.innerHTML = '<div class="empty-state">No tasks linked yet.</div>';
+
+    const notesListEl = document.getElementById('projModalNotes');
+    notesListEl.innerHTML = '';
+    HQ.getNotes().filter(n => n.projectId === p.id).slice().reverse().forEach(n => {
+      const row = document.createElement('div');
+      row.className = 'proj-note-row';
+      row.textContent = n.content;
+      notesListEl.appendChild(row);
+    });
+    if (!notesListEl.children.length) notesListEl.innerHTML = '<div class="empty-state">No notes yet.</div>';
+
+    renderBottlenecks(p);
+  }
+
+  function renderBottlenecks(p) {
+    const el = document.getElementById('projModalBottlenecks');
+    el.innerHTML = '';
+    HQ.getBottlenecks().filter(b => b.projectId === p.id).forEach(b => {
+      const card = document.createElement('div');
+      card.className = 'bn-card' + (b.resolved ? ' resolved' : '');
+      const problem = document.createElement('div');
+      problem.className = 'bn-problem';
+      problem.textContent = b.problem;
+      card.appendChild(problem);
+      if (b.fix) {
+        const fix = document.createElement('div');
+        fix.className = 'bn-fix';
+        fix.textContent = '→ ' + b.fix;
+        card.appendChild(fix);
+      }
+      if (!b.resolved) {
+        const actions = document.createElement('div');
+        actions.className = 'bn-actions';
+        const resolveBtn = document.createElement('button');
+        resolveBtn.type = 'button';
+        resolveBtn.className = 'bn-resolve';
+        resolveBtn.textContent = 'Resolve';
+        resolveBtn.addEventListener('click', () => { HQ.resolveBottleneck(b.id); renderBottlenecks(p); });
+        actions.appendChild(resolveBtn);
+        if (b.fix) {
+          const taskBtn = document.createElement('button');
+          taskBtn.type = 'button';
+          taskBtn.className = 'bn-create-task-btn';
+          taskBtn.textContent = 'Create task from fix';
+          taskBtn.addEventListener('click', () => {
+            const list = getGoals(todayKey());
+            list.push(HQ.normalizeGoal({ text: b.fix, done: false, bucket: p.bucket, projectId: p.id }));
+            setGoals(todayKey(), list);
+            loadToday();
+            taskBtn.disabled = true;
+            taskBtn.textContent = 'Added ✓';
+          });
+          actions.appendChild(taskBtn);
+        }
+        card.appendChild(actions);
+      }
+      el.appendChild(card);
+    });
+    if (!el.children.length) el.innerHTML = '<div class="empty-state">No bottlenecks logged.</div>';
+  }
+
+  document.getElementById('bnAddBtn').addEventListener('click', () => {
+    if (!activeProjectId) return;
+    const problemEl = document.getElementById('bnProblemInput');
+    const fixEl = document.getElementById('bnFixInput');
+    const problem = problemEl.value.trim();
+    if (!problem) return;
+    HQ.addBottleneck({ projectId: activeProjectId, problem, fix: fixEl.value.trim() || null });
+    problemEl.value = ''; fixEl.value = '';
+    const p = HQ.getProjects().find(x => x.id === activeProjectId);
+    if (p) renderBottlenecks(p);
+  });
+
+  // ---------- Notes ----------
+  function renderNotes() {
+    const activeBucket = HQ.getActiveBucket();
+    const listEl = document.getElementById('notesList');
+    const emptyEl = document.getElementById('notesEmpty');
+    listEl.innerHTML = '';
+    const notes = HQ.getNotes()
+      .filter(n => !activeBucket || n.bucket === activeBucket)
+      .slice().reverse();
+    emptyEl.style.display = notes.length === 0 ? 'block' : 'none';
+    notes.forEach(n => {
+      const card = document.createElement('div');
+      card.className = 'note-card';
+      card.style.setProperty('--bucket-color', bucketColor(n.bucket));
+      const content = document.createElement('div');
+      content.className = 'note-content';
+      content.textContent = n.content;
+      card.appendChild(content);
+      const meta = document.createElement('div');
+      meta.className = 'note-meta';
+      const metaParts = [];
+      if (n.bucket) metaParts.push(bucketName(n.bucket));
+      if (n.topic) metaParts.push(n.topic);
+      meta.textContent = metaParts.join(' · ') || ' ';
+      card.appendChild(meta);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'note-delete';
+      del.setAttribute('aria-label', 'Delete note');
+      del.textContent = '×';
+      del.addEventListener('click', () => {
+        HQ.setNotes(HQ.getNotes().filter(x => x.id !== n.id));
+        renderNotes();
+      });
+      card.appendChild(del);
+      listEl.appendChild(card);
+    });
+  }
+
+  // ---------- Quick Note ----------
+  function openQuickNote() {
+    populateBucketSelect(document.getElementById('qnBucket'), true);
+    document.getElementById('qnBucket').value = HQ.getActiveBucket() || '';
+    populateProjectSelect(document.getElementById('qnProject'), document.getElementById('qnBucket').value || null);
+    document.getElementById('qnContent').value = '';
+    document.getElementById('qnTopic').value = '';
+    document.getElementById('qnModalBg').classList.add('show');
+    document.getElementById('qnContent').focus();
+  }
+  function closeQuickNote() { document.getElementById('qnModalBg').classList.remove('show'); }
+  document.getElementById('qnFab').addEventListener('click', openQuickNote);
+  document.getElementById('qnCancel').addEventListener('click', closeQuickNote);
+  document.getElementById('qnModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'qnModalBg') closeQuickNote();
+  });
+  document.getElementById('qnBucket').addEventListener('change', (e) => {
+    populateProjectSelect(document.getElementById('qnProject'), e.target.value || null);
+  });
+  document.getElementById('qnSave').addEventListener('click', () => {
+    const content = document.getElementById('qnContent').value.trim();
+    if (!content) { closeQuickNote(); return; }
+    HQ.addNote({
+      content,
+      bucket: document.getElementById('qnBucket').value || null,
+      projectId: document.getElementById('qnProject').value || null,
+      topic: document.getElementById('qnTopic').value.trim() || null,
+    });
+    closeQuickNote();
+    renderNotes();
+  });
+
+  window.addEventListener('hq-bucket-changed', () => {
+    renderBucketFilterRow();
+    const projBucketInput = document.getElementById('projBucketInput');
+    if (projBucketInput) projBucketInput.value = HQ.getActiveBucket() || '';
+    loadToday(); loadTomorrow();
+    renderProjects();
+    renderNotes();
+  });
+  window.addEventListener('hq-data-changed', () => {
+    renderProjects();
+    renderNotes();
+  });
+
   // ---------- Boot ----------
   rollover();
   processStreak();
+  populateBucketSelect(document.getElementById('projBucketInput'), false);
+  renderBucketFilterRow();
   loadToday();
   loadTomorrow();
   renderStreak();
   updateDayRing();
+  renderProjects();
+  renderNotes();
   setInterval(updateDayRing, 60 * 1000);
   startTicker();
 
@@ -1318,6 +1931,7 @@ body::after {
         window.dispatchEvent(new Event('storage'));
       }
     });
+    if (window.HQ && typeof HQ.initSync === 'function') HQ.initSync();
   });
   </script>
 </body>

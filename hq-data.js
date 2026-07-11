@@ -175,6 +175,14 @@
     return 3;
   }
 
+  // ---------- Active bucket filter (workspace filtering) ----------
+  const ACTIVE_BUCKET_KEY = 'hq:activeBucket';
+  function getActiveBucket() { return storeGet(ACTIVE_BUCKET_KEY, null); } // null = "All"
+  function setActiveBucket(id) {
+    storeSet(ACTIVE_BUCKET_KEY, id || null);
+    window.dispatchEvent(new CustomEvent('hq-bucket-changed'));
+  }
+
   // ---------- Cloud sync registration ----------
   // Separate from the existing 'goals' sync so it doesn't disturb it.
   function initSync() {
@@ -196,6 +204,7 @@
     getJournalEntries, setJournalEntries, addJournalEntry,
     getBottlenecks, setBottlenecks, addBottleneck, resolveBottleneck,
     normalizeGoal, eisenhowerRank,
+    getActiveBucket, setActiveBucket,
     initSync,
   };
 })();
