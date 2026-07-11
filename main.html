@@ -394,12 +394,17 @@ body::after {
   margin-bottom: 6px;
   background: rgba(255,255,255,0.035);
   border: 1px solid rgba(255,255,255,0.06);
+  border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.06));
   border-radius: 12px;
   transition: background 0.2s, opacity 0.3s;
   position: relative;
 }
-.gm-row-main { display: flex; align-items: center; gap: 12px; }
+.gm-row-main { display: flex; align-items: center; gap: 8px; }
 .gm-row:hover { background: rgba(255,255,255,0.06); }
+@media (max-width: 480px) {
+  .gm-row-main { gap: 6px; }
+  .gm-text { font-size: 13.5px; }
+}
 
 .gm-row-meta {
   display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
@@ -1682,6 +1687,10 @@ body::after {
     li.dataset.idx = String(idx);
     if (goal.done) li.classList.add('gm-row-done');
     if (goal.queued) li.classList.add('gm-row-queued');
+    // Bucket color shows as a left accent on the row itself so it stays
+    // visible at a glance even on mobile, where the bucket selector now
+    // lives behind the "..." expander along with the other selectors.
+    li.style.setProperty('--bucket-color', bucketColor(goal.bucket));
 
     const main = document.createElement('div');
     main.className = 'gm-row-main';
@@ -1723,21 +1732,6 @@ body::after {
       main.appendChild(missedBadge);
     }
 
-    const bucketSel = document.createElement('select');
-    bucketSel.className = 'gm-bucket-select';
-    populateBucketSelect(bucketSel, true);
-    bucketSel.value = goal.bucket || '';
-    bucketSel.style.setProperty('--bucket-color', bucketColor(goal.bucket));
-    if (readOnly) bucketSel.disabled = true;
-    bucketSel.addEventListener('change', () => {
-      const list = getGoals(key);
-      if (!list[idx]) return;
-      list[idx].bucket = bucketSel.value || null;
-      setGoals(key, list);
-      reload();
-    });
-    main.appendChild(bucketSel);
-
     const queueBtn = document.createElement('button');
     queueBtn.type = 'button';
     queueBtn.className = 'gm-queue-btn' + (goal.queued ? ' gm-queue-active' : '');
@@ -1754,6 +1748,24 @@ body::after {
     });
     main.appendChild(queueBtn);
 
+    const meta = document.createElement('div');
+    meta.className = 'gm-row-meta';
+
+    const bucketSel = document.createElement('select');
+    bucketSel.className = 'gm-bucket-select';
+    populateBucketSelect(bucketSel, true);
+    bucketSel.value = goal.bucket || '';
+    bucketSel.style.setProperty('--bucket-color', bucketColor(goal.bucket));
+    if (readOnly) bucketSel.disabled = true;
+    bucketSel.addEventListener('change', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].bucket = bucketSel.value || null;
+      setGoals(key, list);
+      reload();
+    });
+    meta.appendChild(bucketSel);
+
     if (key === todayKey()) {
       const repeatBtn = document.createElement('button');
       repeatBtn.type = 'button';
@@ -1769,11 +1781,8 @@ body::after {
         }
         reload();
       });
-      main.appendChild(repeatBtn);
+      meta.appendChild(repeatBtn);
     }
-
-    const meta = document.createElement('div');
-    meta.className = 'gm-row-meta';
 
     const importanceSel = fieldSelect('gm-pill-select', IMPORTANCE_OPTIONS, goal.importance, (v) => {
       const list = getGoals(key);
@@ -1914,6 +1923,11 @@ body::after {
       'Plan tomorrow — ' + formatDate(getTomorrowDateString());
   }
 
+  // Persisted outside renderListInto (keyed by list key) so "Show more"
+  // survives a reload - every row interaction (check, selector change, drag)
+  // calls reload(), and a plain local `expanded` variable was getting reset
+  // to false on every single one of those re-renders.
+  const expandedListState = {};
   function renderListInto(goals, listEl, emptyEl, key, readOnly) {
     listEl.innerHTML = '';
     const activeBucket = HQ.getActiveBucket();
@@ -1925,29 +1939,18 @@ body::after {
     emptyEl.style.display = indexed.length === 0 ? 'block' : 'none';
     const reload = () => (key === todayKey() ? loadToday() : loadTomorrow());
 
-    const visible = indexed.length > 5 ? indexed.slice(0, 5) : indexed;
-    visible.forEach(({ g, i }) => listEl.appendChild(buildGoalRow(g, i, key, readOnly, reload)));
+    const expanded = !!expandedListState[key];
+    const visibleCount = expanded ? indexed.length : Math.min(5, indexed.length);
+    indexed.slice(0, visibleCount).forEach(({ g, i }) => listEl.appendChild(buildGoalRow(g, i, key, readOnly, reload)));
 
     if (indexed.length > 5) {
-      let expanded = false;
       const toggle = document.createElement('button');
       toggle.type = 'button';
       toggle.className = 'gm-show-toggle';
-      const updateLabel = () => {
-        toggle.textContent = expanded ? 'Show less ▴' : ('Show ' + (indexed.length - 5) + ' more ▾');
-      };
-      updateLabel();
+      toggle.textContent = expanded ? 'Show less ▴' : ('Show ' + (indexed.length - 5) + ' more ▾');
       toggle.addEventListener('click', () => {
-        expanded = !expanded;
-        if (expanded) {
-          indexed.slice(5).forEach(({ g, i }) => {
-            const row = buildGoalRow(g, i, key, readOnly, reload);
-            listEl.insertBefore(row, toggle);
-          });
-        } else {
-          Array.from(listEl.querySelectorAll('.gm-row')).slice(5).forEach(r => r.remove());
-        }
-        updateLabel();
+        expandedListState[key] = !expanded;
+        reload();
       });
       listEl.appendChild(toggle);
     }
