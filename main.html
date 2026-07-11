@@ -629,19 +629,23 @@ body::after {
 
 /* ===== Headquarters: bucket select pill on task rows ===== */
 .gm-bucket-select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
   flex-shrink: 0;
   max-width: 88px;
-  padding: 5px 8px;
+  padding: 5px 18px 5px 8px;
   border: 1px solid rgba(255,255,255,0.10);
   border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.10));
   border-radius: 8px;
-  background: rgba(0,0,0,0.28);
+  background-color: rgba(0,0,0,0.28);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 0l4 5 4-5z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
   color: var(--text-secondary);
   font-family: inherit; font-size: 11px; font-weight: 600;
   cursor: pointer;
 }
 @media (max-width: 480px) {
-  .gm-bucket-select { max-width: 64px; font-size: 10px; padding: 5px 5px; }
+  .gm-bucket-select { max-width: 64px; font-size: 10px; padding: 5px 14px 5px 5px; background-position: right 4px center; }
 }
 
 /* ===== Headquarters: Projects ===== */
@@ -659,6 +663,16 @@ body::after {
   outline: none;
 }
 .proj-add-row input[type="text"] { flex: 1; min-width: 140px; }
+.proj-add-row select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 28px;
+  background-color: rgba(0,0,0,0.28);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  color: var(--text-primary);
+  cursor: pointer;
+}
 .proj-group-title {
   font-size: 10.5px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
   color: var(--text-tertiary);
@@ -763,6 +777,14 @@ body::after {
 }
 .field input:focus, .field select:focus, .field textarea:focus {
   border-color: rgba(255,255,255,0.28);
+}
+.field select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
 }
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
