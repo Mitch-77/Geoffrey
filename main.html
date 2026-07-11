@@ -1871,7 +1871,7 @@ body::after {
     // each control gets a small caption so the panel reads as an organized
     // form rather than a scatter of same-looking dropdowns.
     const meta = document.createElement('div');
-    meta.className = 'gm-row-meta';
+    meta.className = 'gm-row-meta' + (expandedMetaIds.has(goal.id) ? ' expanded' : '');
 
     const bucketSel = document.createElement('select');
     bucketSel.className = 'gm-bucket-select';
@@ -1976,7 +1976,11 @@ body::after {
     expanderBtn.className = 'gm-expander-btn';
     expanderBtn.textContent = '⋯';
     expanderBtn.setAttribute('aria-label', 'More task options');
-    expanderBtn.addEventListener('click', () => meta.classList.toggle('expanded'));
+    expanderBtn.addEventListener('click', () => {
+      if (expandedMetaIds.has(goal.id)) expandedMetaIds.delete(goal.id);
+      else expandedMetaIds.add(goal.id);
+      meta.classList.toggle('expanded');
+    });
     main.appendChild(expanderBtn);
 
     const del = document.createElement('button');
@@ -2048,6 +2052,12 @@ body::after {
   // calls reload(), and a plain local `expanded` variable was getting reset
   // to false on every single one of those re-renders.
   const expandedListState = {};
+  // Same issue, same fix, for each row's own "..." meta panel: expanded
+  // state lived only as a CSS class on that row's DOM node, so changing
+  // any control inside the panel (which calls reload()) rebuilt the row
+  // from scratch and the panel snapped shut. Keyed by the task's stable
+  // id so it survives the rebuild.
+  const expandedMetaIds = new Set();
   function renderListInto(goals, listEl, emptyEl, key, readOnly) {
     listEl.innerHTML = '';
     const activeBucket = HQ.getActiveBucket();
