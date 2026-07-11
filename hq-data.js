@@ -175,6 +175,25 @@
     return 3;
   }
 
+  // ---------- Daily recurring task templates ----------
+  // A template is matched to a today-list goal by exact text. Kept separate
+  // from the goal objects themselves since goals get recreated each day.
+  const DAILY_TEMPLATES_KEY = 'hq:dailyTemplates';
+  function getDailyTemplates() { return storeGet(DAILY_TEMPLATES_KEY, []); }
+  function setDailyTemplates(list) { storeSet(DAILY_TEMPLATES_KEY, list); }
+  function isDailyTemplate(text) {
+    return getDailyTemplates().some((t) => t.text === text);
+  }
+  function addDailyTemplate({ text, bucket, projectId }) {
+    const list = getDailyTemplates();
+    if (list.some((t) => t.text === text)) return;
+    list.push({ text, bucket: bucket || null, projectId: projectId || null });
+    setDailyTemplates(list);
+  }
+  function removeDailyTemplate(text) {
+    setDailyTemplates(getDailyTemplates().filter((t) => t.text !== text));
+  }
+
   // ---------- Active bucket filter (workspace filtering) ----------
   const ACTIVE_BUCKET_KEY = 'hq:activeBucket';
   function getActiveBucket() { return storeGet(ACTIVE_BUCKET_KEY, null); } // null = "All"
@@ -205,6 +224,7 @@
     getBottlenecks, setBottlenecks, addBottleneck, resolveBottleneck,
     normalizeGoal, eisenhowerRank,
     getActiveBucket, setActiveBucket,
+    getDailyTemplates, setDailyTemplates, isDailyTemplate, addDailyTemplate, removeDailyTemplate,
     initSync,
   };
 })();
