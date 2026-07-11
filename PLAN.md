@@ -132,5 +132,12 @@ older than 7 days.
       to next week" action (Future Plan, 7 days out). Important+urgent+flow
       tasks get a small 🐸 badge (to-do list and Day Tracker), purely visual.
       Pushed 2026-07-12. Not yet verified in a real browser.
-- [ ] Phase 6 — Dynamic journaling
+- [x] Phase 6 — Dynamic journaling, scoped down per user feedback: dropped the
+      Daily entry type entirely (user already journals daily on paper and
+      didn't want a redundant digital copy) - kept only Weekly Review and
+      Monthly Review, since those auto-pull completed tasks (grouped by
+      bucket, move-the-needle flagged) which paper can't do without manual
+      re-transcription. Same modal pattern as the rest of the app. Entry list
+      shows newest first, in full. Pushed 2026-07-12. Not yet verified in a
+      real browser.
 - [ ] Phase 7 — Habits, Routine button, Open Loops

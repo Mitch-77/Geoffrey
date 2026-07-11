@@ -119,13 +119,15 @@
   const JOURNAL_KEY = 'hq:journal';
   function getJournalEntries() { return storeGet(JOURNAL_KEY, []); }
   function setJournalEntries(list) { storeSet(JOURNAL_KEY, list); }
-  function addJournalEntry({ type, content, weekStart }) {
+  function addJournalEntry({ type, weekStart, prompts }) {
     const list = getJournalEntries();
     const entry = {
       id: uid(),
-      type, // 'daily' | 'weekly' | 'monthly'
-      content,
+      type, // 'weekly' | 'monthly' - the start of that period, Monday for
+      // weekly or the 1st for monthly, so the entry can be re-matched
+      // against the completed-task archive whenever it's viewed.
       weekStart: weekStart || null,
+      prompts: prompts || {},
       createdAt: new Date().toISOString(),
     };
     list.push(entry);

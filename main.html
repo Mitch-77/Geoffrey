@@ -939,6 +939,30 @@ body::after {
 .mtn-row-text { font-size: 13px; color: var(--text-primary); min-width: 0; overflow-wrap: break-word; }
 .mtn-row-tags { font-size: 11px; color: var(--text-tertiary); flex-shrink: 0; white-space: nowrap; }
 
+/* ===== Headquarters: Journal ===== */
+.journal-add-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.journal-bucket-group { margin-bottom: 10px; }
+.journal-bucket-group:last-child { margin-bottom: 0; }
+.journal-bucket-header {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 4px;
+}
+.journal-task-row { font-size: 12.5px; color: var(--text-secondary); padding: 2px 0; }
+.journal-entry-card {
+  padding: 16px;
+  margin-bottom: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.journal-entry-card:last-child { margin-bottom: 0; }
+.journal-entry-header { font-size: 13px; font-weight: 700; color: var(--text-primary); margin-bottom: 12px; }
+.journal-qa-q {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-top: 12px; margin-bottom: 4px;
+}
+.journal-qa-a { font-size: 13px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: break-word; }
+
 /* ===== Headquarters: Quick Note FAB ===== */
 .qn-fab {
   position: fixed;
@@ -1295,6 +1319,16 @@ body::after {
     <div class="empty-state" id="mtnEmpty">No move-the-needle tasks completed yet.</div>
   </div>
 
+  <div class="section">
+    <div class="section-title">Journal</div>
+    <div class="journal-add-row">
+      <button type="button" class="gm-add" id="journalWeeklyBtn">+ Weekly Review</button>
+      <button type="button" class="gm-add" id="journalMonthlyBtn">+ Monthly Review</button>
+    </div>
+    <div id="journalEntries"></div>
+    <div class="empty-state" id="journalEmpty">No journal entries yet.</div>
+  </div>
+
   <button type="button" class="qn-fab" id="qnFab" aria-label="Quick note">✎</button>
 
   <div class="toast-stack" id="toastStack" aria-live="polite"></div>
@@ -1370,6 +1404,36 @@ body::after {
       <div class="proj-link-row">
         <select id="taskDetailLinkNoteSelect"></select>
         <button type="button" class="gm-polish" id="taskDetailLinkNoteBtn">Link note</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="journalModalBg">
+    <div class="modal modal-wide">
+      <div class="modal-top">
+        <h3 id="journalModalTitle">Weekly Review</h3>
+        <button type="button" class="modal-close-btn" id="journalModalClose" aria-label="Close">×</button>
+      </div>
+
+      <div class="modal-section-title">Completed this period</div>
+      <div id="journalSummary"></div>
+
+      <div class="field">
+        <label>Did I accomplish enough?</label>
+        <textarea id="journalPrompt1" rows="3"></textarea>
+      </div>
+      <div class="field">
+        <label>Biggest distractions?</label>
+        <textarea id="journalPrompt2" rows="3"></textarea>
+      </div>
+      <div class="field">
+        <label>Which tasks moved the needle — how do I do more of those?</label>
+        <textarea id="journalPrompt3" rows="3"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="gm-polish" id="journalCancel">Cancel</button>
+        <button type="button" class="gm-add" id="journalSave">Save</button>
       </div>
     </div>
   </div>
@@ -3263,6 +3327,128 @@ body::after {
     });
   }
 
+  // ---------- Journal (Weekly / Monthly Review) ----------
+  function formatMonthLabel(dateStr) {
+    const parts = dateStr.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, 1);
+    return d.toLocaleString('default', { month: 'long', year: 'numeric' });
+  }
+  function journalPeriodLabel(type, rangeStart) {
+    return type === 'weekly' ? 'Weekly Review — Week of ' + formatDate(rangeStart)
+                              : 'Monthly Review — ' + formatMonthLabel(rangeStart);
+  }
+  function getPeriodEnd(type, rangeStart) {
+    const d = new Date(rangeStart + 'T00:00:00');
+    if (type === 'weekly') d.setDate(d.getDate() + 7);
+    else d.setMonth(d.getMonth() + 1);
+    return dateToKey(d);
+  }
+  // Recomputed live from the completed-task archive every time an entry is
+  // created or viewed, rather than frozen at save time - simpler, no
+  // duplicated data, and the archive is effectively append-only day to day.
+  function buildJournalSummaryEl(type, rangeStart) {
+    const end = getPeriodEnd(type, rangeStart);
+    const entries = getCompletedEntries().filter(e => e.date >= rangeStart && e.date < end);
+    const wrap = document.createElement('div');
+    if (!entries.length) {
+      wrap.innerHTML = '<div class="empty-state">Nothing completed in this period.</div>';
+      return wrap;
+    }
+    const byBucket = {};
+    entries.forEach(e => {
+      const k = e.bucket || '__none__';
+      (byBucket[k] = byBucket[k] || []).push(e);
+    });
+    Object.keys(byBucket).forEach(k => {
+      const group = document.createElement('div');
+      group.className = 'journal-bucket-group';
+      const header = document.createElement('div');
+      header.className = 'journal-bucket-header';
+      header.textContent = k === '__none__' ? 'No bucket' : bucketName(k);
+      group.appendChild(header);
+      byBucket[k].forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'journal-task-row';
+        row.textContent = (e.importance === 'move_the_needle' ? '🎯 ' : '') + e.text;
+        group.appendChild(row);
+      });
+      wrap.appendChild(group);
+    });
+    return wrap;
+  }
+
+  let journalModalType = null;
+  let journalModalRangeStart = null;
+  function openJournalModal(type) {
+    journalModalType = type;
+    const todayStr = getActiveDateString();
+    journalModalRangeStart = type === 'weekly' ? startOfWeekStr(todayStr) : startOfMonthStr(todayStr);
+    document.getElementById('journalModalTitle').textContent = journalPeriodLabel(type, journalModalRangeStart);
+    const summaryEl = document.getElementById('journalSummary');
+    summaryEl.innerHTML = '';
+    summaryEl.appendChild(buildJournalSummaryEl(type, journalModalRangeStart));
+    document.getElementById('journalPrompt1').value = '';
+    document.getElementById('journalPrompt2').value = '';
+    document.getElementById('journalPrompt3').value = '';
+    document.getElementById('journalModalBg').classList.add('show');
+  }
+  function closeJournalModal() { document.getElementById('journalModalBg').classList.remove('show'); }
+  document.getElementById('journalWeeklyBtn').addEventListener('click', () => openJournalModal('weekly'));
+  document.getElementById('journalMonthlyBtn').addEventListener('click', () => openJournalModal('monthly'));
+  document.getElementById('journalModalClose').addEventListener('click', closeJournalModal);
+  document.getElementById('journalCancel').addEventListener('click', closeJournalModal);
+  document.getElementById('journalModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'journalModalBg') closeJournalModal();
+  });
+  document.getElementById('journalSave').addEventListener('click', () => {
+    HQ.addJournalEntry({
+      type: journalModalType,
+      weekStart: journalModalRangeStart,
+      prompts: {
+        accomplished: document.getElementById('journalPrompt1').value.trim(),
+        distractions: document.getElementById('journalPrompt2').value.trim(),
+        movedNeedle: document.getElementById('journalPrompt3').value.trim(),
+      },
+    });
+    closeJournalModal();
+    renderJournalEntries();
+  });
+
+  function renderJournalEntries() {
+    const container = document.getElementById('journalEntries');
+    container.innerHTML = '';
+    const entries = HQ.getJournalEntries()
+      .slice()
+      .sort((a, b) => (b.weekStart || '').localeCompare(a.weekStart || '') || (b.createdAt || '').localeCompare(a.createdAt || ''));
+    document.getElementById('journalEmpty').style.display = entries.length ? 'none' : 'block';
+    entries.forEach(e => {
+      const card = document.createElement('div');
+      card.className = 'journal-entry-card';
+      const header = document.createElement('div');
+      header.className = 'journal-entry-header';
+      header.textContent = journalPeriodLabel(e.type, e.weekStart);
+      card.appendChild(header);
+      card.appendChild(buildJournalSummaryEl(e.type, e.weekStart));
+      const prompts = e.prompts || {};
+      [
+        ['Did I accomplish enough?', prompts.accomplished],
+        ['Biggest distractions?', prompts.distractions],
+        ['Which tasks moved the needle — how do I do more of those?', prompts.movedNeedle],
+      ].forEach(([q, a]) => {
+        if (!a) return;
+        const qEl = document.createElement('div');
+        qEl.className = 'journal-qa-q';
+        qEl.textContent = q;
+        card.appendChild(qEl);
+        const aEl = document.createElement('div');
+        aEl.className = 'journal-qa-a';
+        aEl.textContent = a;
+        card.appendChild(aEl);
+      });
+      container.appendChild(card);
+    });
+  }
+
   // Important habits missed several days running get one gentle nudge per
   // day (not a blocking alert) - throttled per task so reloading the page
   // doesn't spam the same nudge repeatedly.
@@ -3297,6 +3483,7 @@ body::after {
   updateDayRing();
   renderProjects();
   renderNotes();
+  renderJournalEntries();
   checkMissedHabitNudges();
   setInterval(updateDayRing, 60 * 1000);
   startTicker();
