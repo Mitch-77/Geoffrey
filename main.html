@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
 <meta name="theme-color" content="#050506">
 <title>Mitch's Dashboard</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -679,10 +679,19 @@ body::after {
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.14);
   border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.3));
-  cursor: pointer;
+  cursor: grab;
+  touch-action: none;
   transition: background 0.15s, opacity 0.2s;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none; -webkit-user-select: none;
 }
 .daytrack-block:hover { background: rgba(255,255,255,0.14); }
+.daytrack-block.dragging {
+  z-index: 10;
+  cursor: grabbing;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  transition: none;
+}
 .daytrack-block.done {
   background: rgba(107,227,164,0.14);
   border-color: rgba(107,227,164,0.4);
@@ -863,6 +872,7 @@ body::after {
   padding: 2px 6px;
 }
 .note-delete:hover { opacity: 1; color: var(--danger); }
+.note-project-select { margin-top: 8px; }
 
 /* ===== Headquarters: Quick Note FAB ===== */
 .qn-fab {
@@ -946,10 +956,24 @@ body::after {
 .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
 .proj-task-row, .proj-note-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
   font-size: 13px; color: var(--text-secondary);
   padding: 7px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
 }
-.proj-task-row.done { color: var(--text-tertiary); text-decoration: line-through; }
+.proj-task-row-label, .proj-note-row-label {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.proj-task-row.done .proj-task-row-label { color: var(--text-tertiary); text-decoration: line-through; }
+.proj-unlink-btn {
+  flex-shrink: 0;
+  border: 1px solid rgba(255,255,255,0.10); background: rgba(255,255,255,0.04);
+  color: var(--text-tertiary);
+  font-family: inherit; font-size: 10.5px; font-weight: 600;
+  padding: 4px 8px; border-radius: 7px; cursor: pointer;
+}
+.proj-unlink-btn:hover { background: rgba(255,107,107,0.12); color: var(--danger); }
+.proj-link-row { display: flex; gap: 8px; margin: 8px 0 4px; }
+.proj-link-row select { flex: 1; min-width: 0; }
 .bn-card {
   padding: 10px 12px; margin-bottom: 8px;
   border: 1px solid rgba(255,255,255,0.06);
@@ -1146,9 +1170,17 @@ body::after {
 
       <div class="modal-section-title">Tasks</div>
       <div id="projModalTasks"></div>
+      <div class="proj-link-row">
+        <select id="projLinkTaskSelect"></select>
+        <button type="button" class="gm-polish" id="projLinkTaskBtn">Link task</button>
+      </div>
 
       <div class="modal-section-title">Notes</div>
       <div id="projModalNotes"></div>
+      <div class="proj-link-row">
+        <select id="projLinkNoteSelect"></select>
+        <button type="button" class="gm-polish" id="projLinkNoteBtn">Link note</button>
+      </div>
 
       <div class="modal-section-title">Bottlenecks</div>
       <div id="projModalBottlenecks"></div>
@@ -1677,6 +1709,20 @@ body::after {
     }, readOnly);
     meta.appendChild(stateSel);
 
+    const projectSel = document.createElement('select');
+    projectSel.className = 'gm-pill-select';
+    populateProjectSelect(projectSel, goal.bucket);
+    projectSel.value = goal.projectId || '';
+    if (readOnly) projectSel.disabled = true;
+    projectSel.addEventListener('change', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].projectId = projectSel.value || null;
+      setGoals(key, list);
+      reload();
+    });
+    meta.appendChild(projectSel);
+
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.className = 'gm-time-input';
@@ -1951,17 +1997,67 @@ body::after {
       textEl.textContent = g.text;
       block.appendChild(textEl);
 
-      block.addEventListener('click', () => {
-        const list = getGoals(todayKey());
-        if (!list[i]) return;
-        list[i].done = !list[i].done;
-        if (list[i].done) list[i].doneAt = Date.now();
-        else delete list[i].doneAt;
-        setGoals(todayKey(), list);
-        loadToday();
-      });
+      wireBlockInteraction(block, { i, top, height }, { pxPerHour, spanStart, spanEnd, totalPx });
 
       timelineEl.appendChild(block);
+    });
+  }
+
+  // Tap toggles done (existing behavior). Drag (press + move past a small
+  // threshold) repositions the block's start time, snapped to 15 minutes.
+  function wireBlockInteraction(block, geom, span) {
+    let dragging = false, moved = false, startY = 0, startTop = geom.top;
+    const snapPx = span.pxPerHour / 4;
+
+    block.addEventListener('pointerdown', (e) => {
+      if (e.button !== undefined && e.button !== 0) return;
+      dragging = true;
+      moved = false;
+      startY = e.clientY;
+      startTop = parseFloat(block.style.top) || 0;
+      try { block.setPointerCapture(e.pointerId); } catch (err) {}
+    });
+    block.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      const dy = e.clientY - startY;
+      if (!moved && Math.abs(dy) < 5) return;
+      moved = true;
+      e.preventDefault();
+      block.classList.add('dragging');
+      const rawTop = startTop + dy;
+      const snappedTop = Math.round(rawTop / snapPx) * snapPx;
+      const maxTop = span.totalPx - geom.height;
+      block.style.top = Math.max(0, Math.min(maxTop, snappedTop)) + 'px';
+    });
+    block.addEventListener('pointerup', (e) => {
+      if (!dragging) return;
+      dragging = false;
+      block.classList.remove('dragging');
+      if (!moved) {
+        const list = getGoals(todayKey());
+        if (!list[geom.i]) return;
+        list[geom.i].done = !list[geom.i].done;
+        if (list[geom.i].done) list[geom.i].doneAt = Date.now();
+        else delete list[geom.i].doneAt;
+        setGoals(todayKey(), list);
+        loadToday();
+        return;
+      }
+      const finalTop = parseFloat(block.style.top) || 0;
+      const minutesFromStart = finalTop / span.pxPerHour * 60;
+      const newStartMin = span.spanStart + Math.round(minutesFromStart / 15) * 15;
+      const hh = Math.floor(newStartMin / 60);
+      const mm = newStartMin % 60;
+      const list = getGoals(todayKey());
+      if (list[geom.i]) {
+        list[geom.i].startTime = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
+        setGoals(todayKey(), list);
+      }
+      loadToday();
+    });
+    block.addEventListener('pointercancel', () => {
+      dragging = false;
+      block.classList.remove('dragging');
     });
   }
   function loadTomorrow() {
@@ -2227,11 +2323,38 @@ body::after {
   document.getElementById('projModalDelete').addEventListener('click', () => {
     const p = HQ.getProjects().find(x => x.id === activeProjectId);
     if (!p) return;
-    if (!confirm('Delete project "' + p.name + '"? Its tasks and notes are kept but unlinked.')) return;
-    HQ.deleteProject(p.id);
+    if (!confirm('Delete project "' + p.name + '"?')) return;
+    const deleteLinkedItems = confirm(
+      'Also delete its linked tasks and notes?\n\n' +
+      'OK — delete them too.\n' +
+      'Cancel — keep them, just unlinked from the project.'
+    );
+    storeListKeys('goals:').forEach(key => {
+      const list = getGoals(key);
+      let changed = false;
+      const next = deleteLinkedItems
+        ? list.filter(g => {
+            if (g.projectId === p.id) { changed = true; return false; }
+            return true;
+          })
+        : list.map(g => {
+            if (g.projectId === p.id) { changed = true; return Object.assign({}, g, { projectId: null }); }
+            return g;
+          });
+      if (changed) setGoals(key, next);
+    });
+    HQ.deleteProject(p.id, { deleteLinkedItems });
     closeProjectModal();
     renderProjects();
+    loadToday(); loadTomorrow(); renderFuturePlan();
+    renderNotes();
   });
+
+  function goalDateLabel(key) {
+    if (key === todayKey()) return 'Today';
+    if (key === tomorrowKey()) return 'Tomorrow';
+    return formatDate(key.slice('goals:'.length));
+  }
 
   function renderProjectModal() {
     const p = HQ.getProjects().find(x => x.id === activeProjectId);
@@ -2240,29 +2363,118 @@ body::after {
 
     const taskListEl = document.getElementById('projModalTasks');
     taskListEl.innerHTML = '';
-    [todayKey(), tomorrowKey()].forEach(key => {
-      getGoals(key).forEach((g) => {
-        if (g.projectId !== p.id) return;
+    const unlinkedTasks = [];
+    storeListKeys('goals:').sort().forEach(key => {
+      getGoals(key).forEach((g, i) => {
+        if (g.projectId !== p.id) { unlinkedTasks.push({ key, i, g }); return; }
         const row = document.createElement('div');
         row.className = 'proj-task-row' + (g.done ? ' done' : '');
-        row.textContent = (g.done ? '✓ ' : '○ ') + g.text;
+        const label = document.createElement('span');
+        label.className = 'proj-task-row-label';
+        label.textContent = (g.done ? '✓ ' : '○ ') + g.text + ' — ' + goalDateLabel(key);
+        row.appendChild(label);
+        const unlinkBtn = document.createElement('button');
+        unlinkBtn.type = 'button';
+        unlinkBtn.className = 'proj-unlink-btn';
+        unlinkBtn.textContent = 'Unlink';
+        unlinkBtn.addEventListener('click', () => {
+          const list = getGoals(key);
+          if (list[i]) { list[i].projectId = null; setGoals(key, list); }
+          renderProjectModal();
+          loadToday(); loadTomorrow(); renderFuturePlan();
+        });
+        row.appendChild(unlinkBtn);
         taskListEl.appendChild(row);
       });
     });
     if (!taskListEl.children.length) taskListEl.innerHTML = '<div class="empty-state">No tasks linked yet.</div>';
 
+    const linkTaskSel = document.getElementById('projLinkTaskSelect');
+    linkTaskSel.innerHTML = '';
+    if (unlinkedTasks.length) {
+      linkTaskSel.disabled = false;
+      unlinkedTasks.forEach(({ key, i, g }) => {
+        const opt = document.createElement('option');
+        opt.value = key + '::' + i;
+        opt.textContent = g.text + ' — ' + goalDateLabel(key);
+        linkTaskSel.appendChild(opt);
+      });
+    } else {
+      linkTaskSel.disabled = true;
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = 'No unlinked tasks';
+      linkTaskSel.appendChild(opt);
+    }
+
     const notesListEl = document.getElementById('projModalNotes');
     notesListEl.innerHTML = '';
-    HQ.getNotes().filter(n => n.projectId === p.id).slice().reverse().forEach(n => {
+    const linkedNotes = HQ.getNotes().filter(n => n.projectId === p.id);
+    linkedNotes.slice().reverse().forEach(n => {
       const row = document.createElement('div');
       row.className = 'proj-note-row';
-      row.textContent = n.content;
+      const label = document.createElement('span');
+      label.className = 'proj-note-row-label';
+      label.textContent = n.content;
+      row.appendChild(label);
+      const unlinkBtn = document.createElement('button');
+      unlinkBtn.type = 'button';
+      unlinkBtn.className = 'proj-unlink-btn';
+      unlinkBtn.textContent = 'Unlink';
+      unlinkBtn.addEventListener('click', () => {
+        const notes = HQ.getNotes();
+        const note = notes.find(x => x.id === n.id);
+        if (note) { note.projectId = null; HQ.setNotes(notes); }
+        renderProjectModal();
+        renderNotes();
+      });
+      row.appendChild(unlinkBtn);
       notesListEl.appendChild(row);
     });
     if (!notesListEl.children.length) notesListEl.innerHTML = '<div class="empty-state">No notes yet.</div>';
 
+    const linkNoteSel = document.getElementById('projLinkNoteSelect');
+    linkNoteSel.innerHTML = '';
+    const unlinkedNotes = HQ.getNotes().filter(n => n.projectId !== p.id);
+    if (unlinkedNotes.length) {
+      linkNoteSel.disabled = false;
+      unlinkedNotes.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.id;
+        opt.textContent = n.content.length > 44 ? n.content.slice(0, 44) + '…' : n.content;
+        linkNoteSel.appendChild(opt);
+      });
+    } else {
+      linkNoteSel.disabled = true;
+      const opt = document.createElement('option');
+      opt.value = ''; opt.textContent = 'No unlinked notes';
+      linkNoteSel.appendChild(opt);
+    }
+
     renderBottlenecks(p);
   }
+
+  document.getElementById('projLinkTaskBtn').addEventListener('click', () => {
+    const sel = document.getElementById('projLinkTaskSelect');
+    if (!sel.value || !activeProjectId) return;
+    const sep = sel.value.lastIndexOf('::');
+    const key = sel.value.slice(0, sep);
+    const i = parseInt(sel.value.slice(sep + 2), 10);
+    const list = getGoals(key);
+    if (!list[i]) return;
+    list[i].projectId = activeProjectId;
+    setGoals(key, list);
+    renderProjectModal();
+    loadToday(); loadTomorrow(); renderFuturePlan();
+  });
+  document.getElementById('projLinkNoteBtn').addEventListener('click', () => {
+    const sel = document.getElementById('projLinkNoteSelect');
+    if (!sel.value || !activeProjectId) return;
+    const notes = HQ.getNotes();
+    const note = notes.find(x => x.id === sel.value);
+    if (note) { note.projectId = activeProjectId; HQ.setNotes(notes); }
+    renderProjectModal();
+    renderNotes();
+  });
 
   function renderBottlenecks(p) {
     const el = document.getElementById('projModalBottlenecks');
@@ -2348,6 +2560,19 @@ body::after {
       if (n.topic) metaParts.push(n.topic);
       meta.textContent = metaParts.join(' · ') || ' ';
       card.appendChild(meta);
+      const projSel = document.createElement('select');
+      projSel.className = 'gm-pill-select note-project-select';
+      populateProjectSelect(projSel, n.bucket);
+      projSel.value = n.projectId || '';
+      projSel.addEventListener('change', () => {
+        const notes = HQ.getNotes();
+        const note = notes.find(x => x.id === n.id);
+        if (!note) return;
+        note.projectId = projSel.value || null;
+        HQ.setNotes(notes);
+        if (activeProjectId) renderProjectModal();
+      });
+      card.appendChild(projSel);
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'note-delete';

@@ -79,8 +79,20 @@
     setProjects(list);
     return list[idx];
   }
-  function deleteProject(id) {
+  function deleteProject(id, opts) {
+    const deleteLinkedItems = !!(opts && opts.deleteLinkedItems);
     setProjects(getProjects().filter((p) => p.id !== id));
+    // Bottlenecks only make sense in the context of their project (no
+    // general "bottlenecks" list to fall back to) — always remove them.
+    setBottlenecks(getBottlenecks().filter((b) => b.projectId !== id));
+    // Notes: either drop them or just unlink, per the caller's choice.
+    // Linked tasks live under goals: keys, outside this module's data —
+    // the caller (main.html) handles those the same way.
+    if (deleteLinkedItems) {
+      setNotes(getNotes().filter((n) => n.projectId !== id));
+    } else {
+      setNotes(getNotes().map((n) => n.projectId === id ? Object.assign({}, n, { projectId: null }) : n));
+    }
   }
 
   // ---------- Notes ----------
