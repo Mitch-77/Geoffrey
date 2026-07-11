@@ -19,6 +19,7 @@
   --danger: #FF6B6B;
   --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
 }
 
 * { box-sizing: border-box; }
@@ -647,6 +648,73 @@ body::after {
   border-color: rgba(255,255,255,0.18);
 }
 
+.daytrack-wrap {
+  display: flex; gap: 10px;
+  padding: 16px 16px 16px 8px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.04);
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+.daytrack-hours { flex-shrink: 0; width: 44px; position: relative; }
+.daytrack-hour-label {
+  position: absolute; left: 0; right: 0;
+  font-family: var(--font-mono);
+  font-size: 10px; color: var(--text-tertiary);
+  transform: translateY(-50%);
+  text-align: right;
+}
+.daytrack-timeline {
+  position: relative; flex: 1;
+  border-left: 1px solid rgba(255,255,255,0.08);
+}
+.daytrack-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(255,255,255,0.05); }
+.daytrack-block {
+  position: absolute;
+  box-sizing: border-box;
+  border-radius: 8px;
+  padding: 3px 8px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.14);
+  border-left: 3px solid var(--bucket-color, rgba(255,255,255,0.3));
+  cursor: pointer;
+  transition: background 0.15s, opacity 0.2s;
+}
+.daytrack-block:hover { background: rgba(255,255,255,0.14); }
+.daytrack-block.done {
+  background: rgba(107,227,164,0.14);
+  border-color: rgba(107,227,164,0.4);
+  opacity: 0.7;
+}
+.daytrack-block.done .daytrack-block-text { text-decoration: line-through; }
+.daytrack-block-time {
+  font-family: var(--font-mono);
+  font-size: 9.5px; color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.daytrack-block-text {
+  font-size: 11.5px; font-weight: 600; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+@media (max-width: 480px) {
+  .daytrack-hours { width: 34px; }
+  .daytrack-hour-label { font-size: 9px; }
+  .daytrack-block-text { font-size: 10.5px; }
+}
+
+.gm-time-input {
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  background-color: rgba(0,0,0,0.28);
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer;
+}
+
 .future-add-row {
   display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
   margin-bottom: 4px;
@@ -945,6 +1013,15 @@ body::after {
       <div class="day-ring-remaining" id="dayRingRemaining">—</div>
       <div class="day-ring-hours">8:00 AM – 12:00 AM</div>
     </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Day Tracker</div>
+    <div class="daytrack-wrap">
+      <div class="daytrack-hours" id="daytrackHours"></div>
+      <div class="daytrack-timeline" id="daytrackTimeline"></div>
+    </div>
+    <div class="empty-state" id="daytrackEmpty">No scheduled tasks today — set a time on a task below to see it here.</div>
   </div>
 
   <div class="section">
@@ -1473,6 +1550,15 @@ body::after {
     { value: 'easy',      label: 'Easy' },
     { value: 'personal',  label: 'Personal' },
   ];
+  const DURATION_OPTIONS = [
+    { value: '',    label: 'Duration' },
+    { value: '15',  label: '15m' },
+    { value: '30',  label: '30m' },
+    { value: '60',  label: '1h' },
+    { value: '90',  label: '1.5h' },
+    { value: '120', label: '2h' },
+    { value: '180', label: '3h' },
+  ];
 
   function buildGoalRow(goal, idx, key, readOnly, reload) {
     const li = document.createElement('li');
@@ -1590,6 +1676,30 @@ body::after {
       reload();
     }, readOnly);
     meta.appendChild(stateSel);
+
+    const timeInput = document.createElement('input');
+    timeInput.type = 'time';
+    timeInput.className = 'gm-time-input';
+    timeInput.value = goal.startTime || '';
+    timeInput.title = 'Schedule a start time';
+    if (readOnly) timeInput.disabled = true;
+    timeInput.addEventListener('change', () => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].startTime = timeInput.value || null;
+      setGoals(key, list);
+      reload();
+    });
+    meta.appendChild(timeInput);
+
+    const durationSel = fieldSelect('gm-pill-select', DURATION_OPTIONS, goal.durationMinutes ? String(goal.durationMinutes) : '', (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].durationMinutes = v ? parseInt(v, 10) : null;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(durationSel);
 
     li.appendChild(meta);
 
@@ -1719,6 +1829,140 @@ body::after {
   function loadToday() {
     const goals = getGoals(todayKey());
     renderListInto(goals, document.getElementById('goalList'), document.getElementById('emptyState'), todayKey(), false);
+    renderDayTracker();
+  }
+
+  // ---------- Day Tracker: visual timeline for today's scheduled tasks ----------
+  function timeStrToMinutes(t) {
+    if (!t || typeof t !== 'string') return null;
+    const parts = t.split(':').map(Number);
+    if (parts.length < 2 || isNaN(parts[0]) || isNaN(parts[1])) return null;
+    return parts[0] * 60 + parts[1];
+  }
+  function formatHourLabel(h) {
+    const hh = h % 24;
+    const ampm = hh >= 12 ? 'PM' : 'AM';
+    let disp = hh % 12;
+    if (disp === 0) disp = 12;
+    return disp + ampm;
+  }
+  function renderDayTracker() {
+    const hoursEl = document.getElementById('daytrackHours');
+    const timelineEl = document.getElementById('daytrackTimeline');
+    const emptyEl = document.getElementById('daytrackEmpty');
+    hoursEl.innerHTML = '';
+    timelineEl.innerHTML = '';
+
+    const pxPerHour = window.innerWidth <= 480 ? 24 : 32;
+    const totalHours = SLEEP_HOUR - WAKE_HOUR;
+    const totalPx = totalHours * pxPerHour;
+    hoursEl.style.height = totalPx + 'px';
+    timelineEl.style.height = totalPx + 'px';
+
+    for (let h = WAKE_HOUR; h <= SLEEP_HOUR; h++) {
+      const y = (h - WAKE_HOUR) * pxPerHour;
+      const label = document.createElement('div');
+      label.className = 'daytrack-hour-label';
+      label.style.top = y + 'px';
+      label.textContent = formatHourLabel(h);
+      hoursEl.appendChild(label);
+      if (h < SLEEP_HOUR) {
+        const line = document.createElement('div');
+        line.className = 'daytrack-hour-line';
+        line.style.top = y + 'px';
+        timelineEl.appendChild(line);
+      }
+    }
+
+    const activeBucket = HQ.getActiveBucket();
+    const allGoals = getGoals(todayKey());
+    const spanStart = WAKE_HOUR * 60;
+    const spanEnd = SLEEP_HOUR * 60;
+
+    const items = allGoals
+      .map((g, i) => ({ g, i }))
+      .filter(({ g }) => g.startTime && (!activeBucket || g.bucket === activeBucket))
+      .map(({ g, i }) => {
+        const startMin = timeStrToMinutes(g.startTime);
+        if (startMin == null) return null;
+        const duration = g.durationMinutes && g.durationMinutes > 0 ? g.durationMinutes : 30;
+        let s = Math.max(spanStart, Math.min(spanEnd, startMin));
+        let e = Math.max(spanStart, Math.min(spanEnd, startMin + duration));
+        if (e <= s) e = Math.min(spanEnd, s + 15);
+        return { g, i, s, e };
+      })
+      .filter(Boolean);
+
+    if (!items.length) {
+      emptyEl.style.display = 'block';
+      return;
+    }
+    emptyEl.style.display = 'none';
+
+    items.sort((a, b) => a.s - b.s || a.e - b.e);
+
+    // Greedy interval-graph column assignment so overlapping blocks sit
+    // side by side instead of stacking on top of each other.
+    const colEndTimes = [];
+    items.forEach(item => {
+      let col = colEndTimes.findIndex(end => end <= item.s);
+      if (col === -1) { col = colEndTimes.length; colEndTimes.push(item.e); }
+      else { colEndTimes[col] = item.e; }
+      item.col = col;
+    });
+
+    let cluster = null;
+    const clusters = [];
+    items.forEach(item => {
+      if (!cluster || item.s >= cluster.maxEnd) {
+        cluster = { items: [item], maxEnd: item.e };
+        clusters.push(cluster);
+      } else {
+        cluster.items.push(item);
+        cluster.maxEnd = Math.max(cluster.maxEnd, item.e);
+      }
+    });
+    clusters.forEach(c => {
+      const colCount = Math.max.apply(null, c.items.map(it => it.col)) + 1;
+      c.items.forEach(it => { it.colCount = colCount; });
+    });
+
+    items.forEach(({ g, i, s, e, col, colCount }) => {
+      const top = (s - spanStart) / 60 * pxPerHour;
+      const height = Math.max(16, (e - s) / 60 * pxPerHour);
+      const widthPct = 100 / colCount;
+      const leftPct = col * widthPct;
+
+      const block = document.createElement('div');
+      block.className = 'daytrack-block' + (g.done ? ' done' : '');
+      block.style.top = top + 'px';
+      block.style.height = height + 'px';
+      block.style.left = 'calc(' + leftPct + '% + 2px)';
+      block.style.width = 'calc(' + widthPct + '% - 4px)';
+      block.style.setProperty('--bucket-color', bucketColor(g.bucket));
+
+      const timeEl = document.createElement('div');
+      timeEl.className = 'daytrack-block-time';
+      timeEl.textContent = g.startTime;
+      block.appendChild(timeEl);
+
+      const textEl = document.createElement('div');
+      textEl.className = 'daytrack-block-text';
+      textEl.textContent = g.text;
+      block.appendChild(textEl);
+
+      block.addEventListener('click', () => {
+        const list = getGoals(todayKey());
+        if (!list[i]) return;
+        list[i].done = !list[i].done;
+        if (list[i].done) list[i].doneAt = Date.now();
+        else delete list[i].doneAt;
+        setGoals(todayKey(), list);
+        loadToday();
+      });
+
+      timelineEl.appendChild(block);
+    });
   }
   function loadTomorrow() {
     const goals = getGoals(tomorrowKey());
