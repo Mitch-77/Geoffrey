@@ -346,6 +346,29 @@ body::after {
   filter: drop-shadow(0 0 6px rgba(242,192,99,0.6));
 }
 
+.gm-view-toggle {
+  display: flex; gap: 4px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 3px;
+  margin-bottom: 12px;
+}
+.gm-view-btn {
+  flex: 1;
+  border: 0; background: transparent;
+  color: var(--text-tertiary);
+  font-family: inherit; font-size: 11px; font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 7px; border-radius: 7px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.gm-view-btn.active {
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B;
+}
+
 .gm-bar {
   display: flex; gap: 4px;
   height: 6px;
@@ -372,7 +395,6 @@ body::after {
 }
 
 .gm-row {
-  display: flex; align-items: center; gap: 12px;
   padding: 12px 14px;
   margin-bottom: 6px;
   background: rgba(255,255,255,0.035);
@@ -381,7 +403,42 @@ body::after {
   transition: background 0.2s, opacity 0.3s;
   position: relative;
 }
+.gm-row-main { display: flex; align-items: center; gap: 12px; }
 .gm-row:hover { background: rgba(255,255,255,0.06); }
+
+.gm-row-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.gm-pill-select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  flex-shrink: 0;
+  padding: 5px 20px 5px 9px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  background-color: rgba(0,0,0,0.28);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='5'><path d='M0 0l4 5 4-5z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 7px center;
+  color: var(--text-secondary);
+  font-family: inherit; font-size: 11px; font-weight: 600;
+  cursor: pointer;
+}
+.gm-expander-btn {
+  display: none;
+  flex-shrink: 0;
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 16px; font-weight: 700; cursor: pointer;
+  padding: 2px 8px; border-radius: 6px; opacity: 0.6;
+  letter-spacing: 1px;
+}
+.gm-expander-btn:hover { opacity: 1; }
+@media (max-width: 640px) {
+  .gm-row-meta { display: none; }
+  .gm-row-meta.expanded { display: flex; }
+  .gm-expander-btn { display: inline-flex; align-items: center; justify-content: center; }
+}
 .gm-row.gm-row-done {
   opacity: 0.45;
   background: rgba(107,227,164,0.04);
@@ -911,6 +968,10 @@ body::after {
           <span>day streak</span>
         </div>
       </div>
+      <div class="gm-view-toggle" id="gmViewToggle">
+        <button type="button" class="gm-view-btn" data-view="manual">Manual</button>
+        <button type="button" class="gm-view-btn" data-view="order">Order</button>
+      </div>
       <div class="gm-bar" id="gmBar"></div>
       <ul id="goalList" class="goal-list gm-list"></ul>
       <div id="emptyState" class="empty-state">No goals for today yet — add one below.</div>
@@ -1349,17 +1410,53 @@ body::after {
     });
   }
 
+  function fieldSelect(className, options, value, onChange, disabled) {
+    const sel = document.createElement('select');
+    sel.className = className;
+    sel.innerHTML = options.map(o => '<option value="' + o.value + '">' + o.label + '</option>').join('');
+    sel.value = value || options[0].value;
+    if (disabled) sel.disabled = true;
+    sel.addEventListener('change', () => onChange(sel.value));
+    return sel;
+  }
+
+  const IMPORTANCE_OPTIONS = [
+    { value: 'not_important',   label: 'Not Important' },
+    { value: 'important',       label: 'Important' },
+    { value: 'move_the_needle', label: 'Move the Needle' },
+  ];
+  const URGENCY_OPTIONS = [
+    { value: 'not_urgent', label: 'Not Urgent' },
+    { value: 'urgent',     label: 'Urgent' },
+    { value: 'habit',      label: 'Habit' },
+  ];
+  const STATE_OPTIONS = [
+    { value: '',         label: 'No state' },
+    { value: 'flow',      label: 'Flow' },
+    { value: 'quick',     label: 'Quick' },
+    { value: 'easy',      label: 'Easy' },
+    { value: 'personal',  label: 'Personal' },
+  ];
+
   function buildGoalRow(goal, idx, key, readOnly, reload) {
+    const orderActive = key === todayKey() && getOrderView();
+
     const li = document.createElement('li');
     li.className = 'gm-row';
     li.dataset.idx = String(idx);
     if (goal.done) li.classList.add('gm-row-done');
     if (goal.queued) li.classList.add('gm-row-queued');
 
+    const main = document.createElement('div');
+    main.className = 'gm-row-main';
+    li.appendChild(main);
+
     const handle = document.createElement('span');
     handle.className = 'gm-handle';
     handle.textContent = '⋮⋮';
-    li.appendChild(handle);
+    handle.title = 'Drag to reorder (switch to Manual view)';
+    if (orderActive) handle.style.display = 'none';
+    main.appendChild(handle);
 
     const cb = document.createElement('input');
     cb.type = 'checkbox';
@@ -1375,12 +1472,12 @@ body::after {
       setGoals(key, list);
       reload();
     });
-    li.appendChild(cb);
+    main.appendChild(cb);
 
     const text = document.createElement('span');
     text.className = 'gm-text';
     text.textContent = goal.text;
-    li.appendChild(text);
+    main.appendChild(text);
     makeInlineEdit(text, null, idx, key, reload);
 
     const bucketSel = document.createElement('select');
@@ -1396,7 +1493,7 @@ body::after {
       setGoals(key, list);
       reload();
     });
-    li.appendChild(bucketSel);
+    main.appendChild(bucketSel);
 
     const queueBtn = document.createElement('button');
     queueBtn.type = 'button';
@@ -1412,7 +1509,7 @@ body::after {
       li.classList.add('is-queue-flashing');
       setTimeout(reload, 480);
     });
-    li.appendChild(queueBtn);
+    main.appendChild(queueBtn);
 
     if (key === todayKey()) {
       const repeatBtn = document.createElement('button');
@@ -1429,8 +1526,48 @@ body::after {
         }
         reload();
       });
-      li.appendChild(repeatBtn);
+      main.appendChild(repeatBtn);
     }
+
+    const meta = document.createElement('div');
+    meta.className = 'gm-row-meta';
+
+    const importanceSel = fieldSelect('gm-pill-select', IMPORTANCE_OPTIONS, goal.importance, (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].importance = v;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(importanceSel);
+
+    const urgencySel = fieldSelect('gm-pill-select', URGENCY_OPTIONS, goal.urgency, (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].urgency = v;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(urgencySel);
+
+    const stateSel = fieldSelect('gm-pill-select', STATE_OPTIONS, goal.state || '', (v) => {
+      const list = getGoals(key);
+      if (!list[idx]) return;
+      list[idx].state = v || null;
+      setGoals(key, list);
+      reload();
+    }, readOnly);
+    meta.appendChild(stateSel);
+
+    li.appendChild(meta);
+
+    const expanderBtn = document.createElement('button');
+    expanderBtn.type = 'button';
+    expanderBtn.className = 'gm-expander-btn';
+    expanderBtn.textContent = '⋯';
+    expanderBtn.setAttribute('aria-label', 'More task options');
+    expanderBtn.addEventListener('click', () => meta.classList.toggle('expanded'));
+    main.appendChild(expanderBtn);
 
     const del = document.createElement('button');
     del.type = 'button';
@@ -1443,9 +1580,9 @@ body::after {
       setGoals(key, list);
       reload();
     });
-    li.appendChild(del);
+    main.appendChild(del);
 
-    wireDragReorder(li, null, key, reload);
+    if (!orderActive) wireDragReorder(li, null, key, reload);
     return li;
   }
 
@@ -1538,7 +1675,30 @@ body::after {
     else                    renderTomorrowCount();
   }
 
+  // ---------- Order view (Eisenhower auto-sort) ----------
+  function getOrderView() { return !!storeGet('todo_order_view_v1'); }
+  function setOrderView(v) { storeSet('todo_order_view_v1', v); }
+  function sortByEisenhower(list) {
+    return list.slice().sort((a, b) => HQ.eisenhowerRank(a) - HQ.eisenhowerRank(b));
+  }
+  function renderViewToggle() {
+    const active = getOrderView() ? 'order' : 'manual';
+    document.querySelectorAll('.gm-view-btn').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.view === active);
+    });
+  }
+  document.querySelectorAll('.gm-view-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      setOrderView(btn.dataset.view === 'order');
+      renderViewToggle();
+      loadToday();
+    });
+  });
+
   function loadToday() {
+    if (getOrderView()) {
+      setGoals(todayKey(), sortByEisenhower(getGoals(todayKey())));
+    }
     const goals = getGoals(todayKey());
     renderListInto(goals, document.getElementById('goalList'), document.getElementById('emptyState'), todayKey(), false);
   }
@@ -1927,6 +2087,7 @@ body::after {
   processStreak();
   populateBucketSelect(document.getElementById('projBucketInput'), false);
   renderBucketFilterRow();
+  renderViewToggle();
   loadToday();
   loadTomorrow();
   renderStreak();
