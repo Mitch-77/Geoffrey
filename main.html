@@ -1209,34 +1209,6 @@ body::after {
   </div>
 
   <div class="section">
-    <div class="section-title">Projects</div>
-    <div class="proj-add-row">
-      <div class="field">
-        <label>Name</label>
-        <input type="text" id="projNameInput" placeholder="New project name…" autocomplete="off">
-      </div>
-      <div class="field-row">
-        <div class="field"><label>Bucket</label><select id="projBucketInput"></select></div>
-        <div class="field">
-          <label>Status</label>
-          <select id="projStatusInput">
-            <option value="ongoing">Ongoing</option>
-            <option value="deadline">Deadline</option>
-            <option value="done">Done</option>
-          </select>
-        </div>
-      </div>
-      <div class="field" id="projDeadlineField" style="display:none;">
-        <label>Deadline</label>
-        <input type="date" id="projDeadlineInput">
-      </div>
-      <button type="button" class="gm-add" id="projAddBtn">+ Add Project</button>
-    </div>
-    <div class="proj-groups" id="projGroups"></div>
-    <div class="empty-state" id="projEmpty">No projects yet — add one above.</div>
-  </div>
-
-  <div class="section">
     <div class="section-title">To Do List</div>
 
     <!-- TODAY -->
@@ -1304,6 +1276,34 @@ body::after {
       <div id="futureGroups"></div>
       <div id="futureEmpty" class="empty-state">Nothing scheduled beyond tomorrow yet.</div>
     </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Projects</div>
+    <div class="proj-add-row">
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="projNameInput" placeholder="New project name…" autocomplete="off">
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Bucket</label><select id="projBucketInput"></select></div>
+        <div class="field">
+          <label>Status</label>
+          <select id="projStatusInput">
+            <option value="ongoing">Ongoing</option>
+            <option value="deadline">Deadline</option>
+            <option value="done">Done</option>
+          </select>
+        </div>
+      </div>
+      <div class="field" id="projDeadlineField" style="display:none;">
+        <label>Deadline</label>
+        <input type="date" id="projDeadlineInput">
+      </div>
+      <button type="button" class="gm-add" id="projAddBtn">+ Add Project</button>
+    </div>
+    <div class="proj-groups" id="projGroups"></div>
+    <div class="empty-state" id="projEmpty">No projects yet — add one above.</div>
   </div>
 
   <div class="section">
