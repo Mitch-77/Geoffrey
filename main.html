@@ -715,6 +715,21 @@ body::after {
   border-left: 1px solid rgba(255,255,255,0.08);
 }
 .daytrack-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(255,255,255,0.05); }
+.daytrack-now-line {
+  position: absolute; left: 0; right: 0;
+  height: 2px;
+  background: #FF6B6B;
+  box-shadow: 0 0 6px rgba(255,107,107,0.55);
+  z-index: 5;
+  pointer-events: none;
+}
+.daytrack-now-line::before {
+  content: '';
+  position: absolute; left: -4px; top: 50%;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: #FF6B6B;
+  transform: translateY(-50%);
+}
 .daytrack-block {
   position: absolute;
   box-sizing: border-box;
@@ -2409,6 +2424,35 @@ body::after {
 
       timelineEl.appendChild(block);
     });
+
+    renderNowLine();
+  }
+
+  // A moving "now" line on the Day Tracker, so you don't have to eyeball
+  // the hour labels to see where the current time falls. Repositioned by
+  // its own short interval (see Boot) in addition to every full re-render,
+  // so it keeps creeping forward even if nothing else changes for a while.
+  function renderNowLine() {
+    const timelineEl = document.getElementById('daytrackTimeline');
+    if (!timelineEl) return;
+    const now = new Date();
+    const nowMinutes = now.getHours() * 60 + now.getMinutes();
+    const spanStart = WAKE_HOUR * 60;
+    const spanEnd = SLEEP_HOUR * 60;
+    let line = document.getElementById('daytrackNowLine');
+    if (nowMinutes < spanStart || nowMinutes > spanEnd) {
+      if (line) line.style.display = 'none';
+      return;
+    }
+    if (!line) {
+      line = document.createElement('div');
+      line.id = 'daytrackNowLine';
+      line.className = 'daytrack-now-line';
+      timelineEl.appendChild(line);
+    }
+    const pxPerHour = window.innerWidth <= 480 ? 24 : 32;
+    line.style.display = 'block';
+    line.style.top = ((nowMinutes - spanStart) / 60 * pxPerHour) + 'px';
   }
 
   // Tap toggles done (existing behavior). Drag (press + move past a small
@@ -3679,6 +3723,7 @@ body::after {
   renderJournalEntries();
   checkMissedHabitNudges();
   setInterval(updateDayRing, 60 * 1000);
+  setInterval(renderNowLine, 60 * 1000);
   startTicker();
 
   // Re-render when storage changes from another tab (or our bridged parent).
