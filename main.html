@@ -1911,6 +1911,7 @@ body::after {
     const li = document.createElement('li');
     li.className = 'gm-row';
     li.dataset.idx = String(idx);
+    li.dataset.goalId = goal.id;
     if (goal.done) li.classList.add('gm-row-done');
     if (goal.queued) li.classList.add('gm-row-queued');
     // Bucket color shows as a left accent on the row itself so it stays
@@ -2170,13 +2171,23 @@ body::after {
   // id so it survives the rebuild.
   const expandedMetaIds = new Set();
   function renderListInto(goals, listEl, emptyEl, key, readOnly) {
+    // FLIP animation, step 1 (First): record where each row currently sits
+    // before the rebuild, keyed by the task's stable id.
+    const firstRects = new Map();
+    listEl.querySelectorAll('.gm-row').forEach(row => {
+      if (row.dataset.goalId) firstRects.set(row.dataset.goalId, row.getBoundingClientRect());
+    });
+
     listEl.innerHTML = '';
     const activeBucket = HQ.getActiveBucket();
     // Keep each item's original index into the stored array (goals here is the
     // full unfiltered list) so row handlers still write back to the right slot.
+    // Sort (stably) so completed tasks sink to the bottom without disturbing
+    // manual/Eisenhower order among the rest.
     const indexed = goals
       .map((g, i) => ({ g, i }))
-      .filter(({ g }) => !activeBucket || g.bucket === activeBucket);
+      .filter(({ g }) => !activeBucket || g.bucket === activeBucket)
+      .sort((a, b) => (a.g.done === b.g.done) ? 0 : (a.g.done ? 1 : -1));
     emptyEl.style.display = indexed.length === 0 ? 'block' : 'none';
     const reload = () => (key === todayKey() ? loadToday() : loadTomorrow());
 
@@ -2195,6 +2206,25 @@ body::after {
       });
       listEl.appendChild(toggle);
     }
+
+    // FLIP, steps 2-4 (Last/Invert/Play): jump each moved row back to its old
+    // spot with no transition, then release it into a transition next frame
+    // so it visibly glides to its new position instead of just snapping there.
+    const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    listEl.querySelectorAll('.gm-row').forEach(row => {
+      if (reduceMotion) return;
+      const first = firstRects.get(row.dataset.goalId);
+      if (!first) return;
+      const dy = first.top - row.getBoundingClientRect().top;
+      if (Math.abs(dy) < 1) return;
+      row.style.transition = 'none';
+      row.style.transform = 'translateY(' + dy + 'px)';
+      requestAnimationFrame(() => {
+        row.style.transition = 'transform 0.32s cubic-bezier(0.4, 0, 0.2, 1)';
+        row.style.transform = '';
+        setTimeout(() => { row.style.transition = ''; }, 340);
+      });
+    });
 
     if (key === todayKey()) renderTodayHeader();
     else                    renderTomorrowCount();
@@ -2572,7 +2602,8 @@ body::after {
     const allGoals = getGoals(key);
     const indexed = allGoals
       .map((g, i) => ({ g, i }))
-      .filter(({ g }) => !activeBucket || g.bucket === activeBucket);
+      .filter(({ g }) => !activeBucket || g.bucket === activeBucket)
+      .sort((a, b) => (a.g.done === b.g.done) ? 0 : (a.g.done ? 1 : -1));
     if (!indexed.length) return null;
 
     const group = document.createElement('div');
