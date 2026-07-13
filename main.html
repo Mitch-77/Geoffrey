@@ -1533,6 +1533,15 @@ body::after {
 
   function todayKey()    { return 'goals:' + getActiveDateString(); }
   function tomorrowKey() { return 'goals:' + getTomorrowDateString(); }
+  // Every goals: key for today or later, sorted. rollover() is supposed to
+  // be the only thing touching past-dated keys, but a cross-device sync can
+  // land after rollover already ran this session and resurrect an old key
+  // it had locally - this keeps task pickers from surfacing that debris
+  // even in the window before the next rollover cleans it up.
+  function activeGoalKeys() {
+    const todayStr = getActiveDateString();
+    return storeListKeys('goals:').filter(k => k.slice('goals:'.length) >= todayStr).sort();
+  }
 
   function getGoals(key) {
     const g = storeGet(key);
@@ -2704,7 +2713,7 @@ body::after {
 
   function findGoalById(id) {
     if (!id) return null;
-    for (const key of storeListKeys('goals:')) {
+    for (const key of activeGoalKeys()) {
       const g = getGoals(key).find(x => x.id === id);
       if (g) return g;
     }
@@ -2715,7 +2724,7 @@ body::after {
     const none = document.createElement('option');
     none.value = ''; none.textContent = 'No task';
     sel.appendChild(none);
-    storeListKeys('goals:').sort().forEach(key => {
+    activeGoalKeys().forEach(key => {
       getGoals(key)
         .filter(g => !bucketFilter || g.bucket === bucketFilter)
         .forEach(g => {
@@ -2874,7 +2883,7 @@ body::after {
     const taskListEl = document.getElementById('projModalTasks');
     taskListEl.innerHTML = '';
     const unlinkedTasks = [];
-    storeListKeys('goals:').sort().forEach(key => {
+    activeGoalKeys().forEach(key => {
       getGoals(key).forEach((g, i) => {
         if (g.projectId !== p.id) { unlinkedTasks.push({ key, i, g }); return; }
         const row = document.createElement('div');
@@ -3643,7 +3652,14 @@ body::after {
 
   // Re-render when storage changes from another tab (or our bridged parent).
   window.addEventListener('storage', () => {
-    loadToday(); loadTomorrow(); renderStreak();
+    // Also fires after a cloud sync pulls in remote goals: data (sync.js
+    // dispatches this same event on apply). If that remote blob was pushed
+    // by a device/tab that hadn't rolled over yet, it can resurrect old
+    // dated keys locally - re-running rollover here cleans those up right
+    // away instead of leaving them until the next full page load.
+    rollover();
+    applyDailyTemplates();
+    loadToday(); loadTomorrow(); renderFuturePlan(); renderStreak();
   });
 })();
 </script>
