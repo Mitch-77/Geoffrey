@@ -2094,6 +2094,27 @@ body::after {
         reload();
       });
       meta.appendChild(metaField('Repeat', repeatBtn));
+
+      const pushBtn = document.createElement('button');
+      pushBtn.type = 'button';
+      pushBtn.className = 'gm-repeat-toggle';
+      pushBtn.textContent = '→ Tomorrow';
+      pushBtn.title = 'Move just this task to tomorrow';
+      pushBtn.addEventListener('click', () => {
+        const list = getGoals(key);
+        const i = list.findIndex(x => x.id === goal.id);
+        if (i === -1) return;
+        const [moved] = list.splice(i, 1);
+        setGoals(key, list);
+        const tomorrow = getGoals(tomorrowKey());
+        if (!tomorrow.some(t => t.text === moved.text)) {
+          tomorrow.push(Object.assign({}, moved, { done: false, missedDays: 0 }));
+          setGoals(tomorrowKey(), tomorrow);
+        }
+        loadTomorrow();
+        reload();
+      });
+      meta.appendChild(metaField('Push', pushBtn));
     }
 
     li.appendChild(meta);
@@ -2706,7 +2727,9 @@ body::after {
     const tomorrow = getGoals(tomorrowKey());
     const seen = new Set(tomorrow.map(g => g.text));
     remaining.forEach(g => {
-      if (!seen.has(g.text)) { tomorrow.push({ text: g.text, done: false }); seen.add(g.text); }
+      // Preserve bucket/project/priority/etc, not just text - same bug as
+      // the old rollover() had, fixed here to match.
+      if (!seen.has(g.text)) { tomorrow.push(Object.assign({}, g, { done: false, missedDays: 0 })); seen.add(g.text); }
     });
     setGoals(tomorrowKey(), tomorrow);
     setGoals(todayKey(), today.filter(g => g.done));
