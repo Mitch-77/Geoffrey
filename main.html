@@ -1823,7 +1823,17 @@ body::after {
         textEl.removeAttribute('contenteditable');
         if (next && next !== original) {
           const list = getGoals(key);
-          if (list[idx]) { list[idx].text = next; setGoals(key, list); }
+          if (list[idx]) {
+            list[idx].text = next;
+            setGoals(key, list);
+            // Repeat is matched by exact text - carry it over to the new
+            // wording, otherwise renaming a repeating task silently detaches
+            // it from applyDailyTemplates() and it stops coming back.
+            if (HQ.isDailyTemplate(original)) {
+              HQ.removeDailyTemplate(original);
+              HQ.addDailyTemplate({ text: next, bucket: list[idx].bucket, projectId: list[idx].projectId });
+            }
+          }
           reload();
         } else {
           textEl.textContent = original;
