@@ -1366,6 +1366,12 @@ body::after {
   </div>
 
   <div class="section">
+    <div class="section-title">Repeating Tasks</div>
+    <div id="repeatingList"></div>
+    <div class="empty-state" id="repeatingEmpty">No repeating tasks set — turn on 🔁 Repeat on any task to see it here.</div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Habit Tracker</div>
     <div class="habit-grid-wrap">
       <div id="habitGrid"></div>
@@ -1832,6 +1838,7 @@ body::after {
             if (HQ.isDailyTemplate(original)) {
               HQ.removeDailyTemplate(original);
               HQ.addDailyTemplate({ text: next, bucket: list[idx].bucket, projectId: list[idx].projectId });
+              renderRepeatingList();
             }
           }
           reload();
@@ -2101,6 +2108,7 @@ body::after {
         } else {
           HQ.addDailyTemplate({ text: goal.text, bucket: goal.bucket, projectId: goal.projectId });
         }
+        renderRepeatingList();
         reload();
       });
       meta.appendChild(metaField('Repeat', repeatBtn));
@@ -3658,6 +3666,34 @@ body::after {
     }
     return streak;
   }
+  // Makes hq:dailyTemplates inspectable - otherwise there was no way to see
+  // whether a task's repeat actually stuck, short of finding it on a day
+  // it happens to be visible and checking its meta panel.
+  function renderRepeatingList() {
+    const container = document.getElementById('repeatingList');
+    container.innerHTML = '';
+    const templates = HQ.getDailyTemplates();
+    document.getElementById('repeatingEmpty').style.display = templates.length ? 'none' : 'block';
+    templates.forEach(t => {
+      const row = document.createElement('div');
+      row.className = 'mtn-row';
+      const label = document.createElement('span');
+      label.className = 'mtn-row-text';
+      label.textContent = t.text + (t.bucket ? ' · ' + bucketName(t.bucket) : '');
+      row.appendChild(label);
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'proj-unlink-btn';
+      del.textContent = 'Remove';
+      del.addEventListener('click', () => {
+        HQ.removeDailyTemplate(t.text);
+        renderRepeatingList();
+      });
+      row.appendChild(del);
+      container.appendChild(row);
+    });
+  }
+
   function renderHabitTracker() {
     const container = document.getElementById('habitGrid');
     container.innerHTML = '';
@@ -3754,6 +3790,7 @@ body::after {
   renderProjects();
   renderNotes();
   renderJournalEntries();
+  renderRepeatingList();
   checkMissedHabitNudges();
   setInterval(updateDayRing, 60 * 1000);
   setInterval(renderNowLine, 60 * 1000);
