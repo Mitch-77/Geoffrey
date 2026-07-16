@@ -2000,7 +2000,6 @@ body::after {
     queueBtn.className = 'gm-queue-btn' + (goal.queued ? ' gm-queue-active' : '');
     queueBtn.textContent = '⚡';
     queueBtn.title = 'Queue for productivity window';
-    if (readOnly) queueBtn.disabled = true;
     queueBtn.addEventListener('click', () => {
       const list = getGoals(key);
       if (!list[idx]) return;
@@ -2022,7 +2021,6 @@ body::after {
     populateBucketSelect(bucketSel, true);
     bucketSel.value = goal.bucket || '';
     bucketSel.style.setProperty('--bucket-color', bucketColor(goal.bucket));
-    if (readOnly) bucketSel.disabled = true;
     bucketSel.addEventListener('change', () => {
       const list = getGoals(key);
       if (!list[idx]) return;
@@ -2036,7 +2034,6 @@ body::after {
     projectSel.className = 'gm-pill-select';
     populateProjectSelect(projectSel, goal.bucket);
     projectSel.value = goal.projectId || '';
-    if (readOnly) projectSel.disabled = true;
     projectSel.addEventListener('change', () => {
       const list = getGoals(key);
       if (!list[idx]) return;
@@ -2052,7 +2049,7 @@ body::after {
       list[idx].importance = v;
       setGoals(key, list);
       reload();
-    }, readOnly);
+    }, false);
     meta.appendChild(metaField('Importance', importanceSel));
 
     const urgencySel = fieldSelect('gm-pill-select', URGENCY_OPTIONS, goal.urgency, (v) => {
@@ -2061,7 +2058,7 @@ body::after {
       list[idx].urgency = v;
       setGoals(key, list);
       reload();
-    }, readOnly);
+    }, false);
     meta.appendChild(metaField('Urgency', urgencySel));
 
     const stateSel = fieldSelect('gm-pill-select', STATE_OPTIONS, goal.state || '', (v) => {
@@ -2070,14 +2067,13 @@ body::after {
       list[idx].state = v || null;
       setGoals(key, list);
       reload();
-    }, readOnly);
+    }, false);
     meta.appendChild(metaField('State', stateSel));
 
     const timeInput = document.createElement('input');
     timeInput.type = 'time';
     timeInput.className = 'gm-time-input';
     timeInput.value = goal.startTime || '';
-    if (readOnly) timeInput.disabled = true;
     timeInput.addEventListener('change', () => {
       const list = getGoals(key);
       if (!list[idx]) return;
@@ -2093,7 +2089,7 @@ body::after {
       list[idx].durationMinutes = v ? parseInt(v, 10) : null;
       setGoals(key, list);
       reload();
-    }, readOnly);
+    }, false);
     meta.appendChild(metaField('Duration', durationSel));
 
     if (key === todayKey()) {
