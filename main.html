@@ -2135,6 +2135,32 @@ body::after {
       meta.appendChild(metaField('Push', pushBtn));
     }
 
+    if (key === tomorrowKey()) {
+      // Not gated by readOnly on purpose - "locked until 6am" is meant to
+      // stop casual edits to tomorrow's plan, not block undoing a mistaken
+      // push here.
+      const pullBtn = document.createElement('button');
+      pullBtn.type = 'button';
+      pullBtn.className = 'gm-repeat-toggle';
+      pullBtn.textContent = '← Today';
+      pullBtn.title = 'Move just this task back to today';
+      pullBtn.addEventListener('click', () => {
+        const list = getGoals(key);
+        const i = list.findIndex(x => x.id === goal.id);
+        if (i === -1) return;
+        const [moved] = list.splice(i, 1);
+        setGoals(key, list);
+        const today = getGoals(todayKey());
+        if (!today.some(t => t.text === moved.text)) {
+          today.push(Object.assign({}, moved, { done: false, missedDays: 0 }));
+          setGoals(todayKey(), today);
+        }
+        loadToday();
+        reload();
+      });
+      meta.appendChild(metaField('Pull', pullBtn));
+    }
+
     li.appendChild(meta);
 
     const expanderBtn = document.createElement('button');
