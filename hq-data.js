@@ -212,6 +212,8 @@
         importance: g.importance || 'not_important',
         urgency: g.urgency || 'not_urgent',
         minutes: g.minutes || null,
+        startTime: g.startTime || null,
+        durationMinutes: g.durationMinutes || null,
         date: dateStr,
         doneAt: g.doneAt || null,
       });

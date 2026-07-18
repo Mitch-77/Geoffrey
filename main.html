@@ -693,6 +693,37 @@ body::after {
   border-color: rgba(255,255,255,0.18);
 }
 
+.daytrack-nav {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-bottom: 10px;
+}
+.daytrack-nav-btn {
+  flex-shrink: 0;
+  width: 32px; height: 32px;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 9px;
+  background: rgba(255,255,255,0.04);
+  color: var(--text-primary);
+  font-size: 16px; font-weight: 700; line-height: 1;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.daytrack-nav-btn:hover { background: rgba(255,255,255,0.08); }
+.daytrack-nav-center { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.daytrack-date-label { font-size: 13px; font-weight: 700; color: var(--text-primary); }
+.daytrack-today-btn {
+  border: 0; background: transparent;
+  color: var(--sky, #7DD3FC);
+  font-family: inherit; font-size: 10.5px; font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer; padding: 0;
+}
+.daytrack-today-btn:hover { text-decoration: underline; }
+.note-small {
+  margin-top: 10px;
+  font-size: 11.5px; line-height: 1.5;
+  color: var(--text-tertiary);
+}
 .daytrack-wrap {
   display: flex; gap: 10px;
   padding: 16px 16px 16px 8px;
@@ -714,6 +745,8 @@ body::after {
   position: relative; flex: 1;
   border-left: 1px solid rgba(255,255,255,0.08);
 }
+.daytrack-timeline.clickable { cursor: copy; }
+.daytrack-block.readonly { cursor: default; opacity: 0.75; }
 .daytrack-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(255,255,255,0.05); }
 .daytrack-now-line {
   position: absolute; left: 0; right: 0;
@@ -1216,11 +1249,20 @@ body::after {
 
   <div class="section">
     <div class="section-title">Day Tracker</div>
+    <div class="daytrack-nav">
+      <button type="button" id="daytrackPrevBtn" class="daytrack-nav-btn" aria-label="Previous day">‹</button>
+      <div class="daytrack-nav-center">
+        <span class="daytrack-date-label" id="daytrackDateLabel">Today</span>
+        <button type="button" id="daytrackTodayBtn" class="daytrack-today-btn" style="display:none;">Jump to today</button>
+      </div>
+      <button type="button" id="daytrackNextBtn" class="daytrack-nav-btn" aria-label="Next day">›</button>
+    </div>
     <div class="daytrack-wrap">
       <div class="daytrack-hours" id="daytrackHours"></div>
       <div class="daytrack-timeline" id="daytrackTimeline"></div>
     </div>
-    <div class="empty-state" id="daytrackEmpty">No scheduled tasks today — set a time on a task below to see it here.</div>
+    <div class="empty-state" id="daytrackEmpty">No scheduled tasks — set a time on a task to see it here, or click the timeline to add one.</div>
+    <div class="note-small" id="daytrackPastNote" style="display:none;">Past days are read-only, and only show tasks that were actually completed that day — unfinished ones don't keep a record of which day they were on.</div>
   </div>
 
   <div class="section">
@@ -1463,6 +1505,27 @@ body::after {
       <div class="proj-link-row">
         <select id="taskDetailLinkNoteSelect"></select>
         <button type="button" class="gm-polish" id="taskDetailLinkNoteBtn">Link note</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-bg" id="quickAddModalBg">
+    <div class="modal">
+      <div class="modal-top">
+        <h3 id="quickAddTitle">New task</h3>
+        <button type="button" class="modal-close-btn" id="quickAddClose" aria-label="Close">×</button>
+      </div>
+      <div class="field">
+        <label>Task</label>
+        <input type="text" id="quickAddText" placeholder="What needs doing?" autocomplete="off">
+      </div>
+      <div class="field-row">
+        <div class="field"><label>Start time</label><input type="time" id="quickAddTime"></div>
+        <div class="field"><label>Duration</label><select id="quickAddDuration"></select></div>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="gm-polish" id="quickAddCancel">Cancel</button>
+        <button type="button" class="gm-add" id="quickAddSave">Add</button>
       </div>
     </div>
   </div>
@@ -2376,12 +2439,49 @@ body::after {
     if (disp === 0) disp = 12;
     return disp + ampm;
   }
+  // dayTrackerViewDate lets the timeline show any day, not just today -
+  // set at Boot, moved by the prev/next/today nav controls.
+  let dayTrackerViewDate = null;
+  function dayTrackerDateLabel(dateStr) {
+    if (dateStr === getActiveDateString()) return 'Today — ' + formatDate(dateStr);
+    if (dateStr === getTomorrowDateString()) return 'Tomorrow — ' + formatDate(dateStr);
+    return formatDate(dateStr);
+  }
+  // Block interactions (check/drag/long-press) write through whichever day
+  // is currently on screen; loadToday() only makes sense to re-run when
+  // that day IS today, otherwise just re-paint the timeline itself.
+  function reloadDayTracker() {
+    if (dayTrackerViewDate === getActiveDateString()) loadToday();
+    else renderDayTracker();
+  }
+  function changeDayTrackerDate(deltaDays) {
+    const d = new Date(dayTrackerViewDate + 'T00:00:00');
+    d.setDate(d.getDate() + deltaDays);
+    dayTrackerViewDate = dateToKey(d);
+    renderDayTracker();
+  }
+  document.getElementById('daytrackPrevBtn').addEventListener('click', () => changeDayTrackerDate(-1));
+  document.getElementById('daytrackNextBtn').addEventListener('click', () => changeDayTrackerDate(1));
+  document.getElementById('daytrackTodayBtn').addEventListener('click', () => {
+    dayTrackerViewDate = getActiveDateString();
+    renderDayTracker();
+  });
+
   function renderDayTracker() {
     const hoursEl = document.getElementById('daytrackHours');
     const timelineEl = document.getElementById('daytrackTimeline');
     const emptyEl = document.getElementById('daytrackEmpty');
     hoursEl.innerHTML = '';
     timelineEl.innerHTML = '';
+
+    const todayStr = getActiveDateString();
+    const viewDate = dayTrackerViewDate;
+    const isPast = viewDate < todayStr;
+
+    document.getElementById('daytrackDateLabel').textContent = dayTrackerDateLabel(viewDate);
+    document.getElementById('daytrackTodayBtn').style.display = viewDate === todayStr ? 'none' : 'inline-block';
+    document.getElementById('daytrackPastNote').style.display = isPast ? 'block' : 'none';
+    timelineEl.classList.toggle('clickable', !isPast);
 
     const pxPerHour = window.innerWidth <= 480 ? 24 : 32;
     const totalHours = SLEEP_HOUR - WAKE_HOUR;
@@ -2405,11 +2505,20 @@ body::after {
     }
 
     const activeBucket = HQ.getActiveBucket();
-    const allGoals = getGoals(todayKey());
     const spanStart = WAKE_HOUR * 60;
     const spanEnd = SLEEP_HOUR * 60;
 
-    const items = allGoals
+    // Past days: an unfinished task carries forward into today with no
+    // memory of which earlier day it used to be on, so the only record of
+    // "what happened on this past day" is the completed-task archive -
+    // which is why archiveCompletedTasks() now also keeps startTime/
+    // durationMinutes. Today/future days read the live goals list, same
+    // as always.
+    const sourceGoals = isPast
+      ? HQ.getCompletedLog().filter(e => e.date === viewDate).map(e => Object.assign({}, e, { done: true }))
+      : getGoals('goals:' + viewDate);
+
+    const items = sourceGoals
       .map((g, i) => ({ g, i }))
       .filter(({ g }) => g.startTime && (!activeBucket || g.bucket === activeBucket))
       .map(({ g, i }) => {
@@ -2423,84 +2532,140 @@ body::after {
       })
       .filter(Boolean);
 
-    if (!items.length) {
-      emptyEl.style.display = 'block';
-      return;
+    emptyEl.style.display = items.length ? 'none' : 'block';
+
+    if (items.length) {
+      items.sort((a, b) => a.s - b.s || a.e - b.e);
+
+      // Greedy interval-graph column assignment so overlapping blocks sit
+      // side by side instead of stacking on top of each other.
+      const colEndTimes = [];
+      items.forEach(item => {
+        let col = colEndTimes.findIndex(end => end <= item.s);
+        if (col === -1) { col = colEndTimes.length; colEndTimes.push(item.e); }
+        else { colEndTimes[col] = item.e; }
+        item.col = col;
+      });
+
+      let cluster = null;
+      const clusters = [];
+      items.forEach(item => {
+        if (!cluster || item.s >= cluster.maxEnd) {
+          cluster = { items: [item], maxEnd: item.e };
+          clusters.push(cluster);
+        } else {
+          cluster.items.push(item);
+          cluster.maxEnd = Math.max(cluster.maxEnd, item.e);
+        }
+      });
+      clusters.forEach(c => {
+        const colCount = Math.max.apply(null, c.items.map(it => it.col)) + 1;
+        c.items.forEach(it => { it.colCount = colCount; });
+      });
+
+      const dateKey = 'goals:' + viewDate;
+      items.forEach(({ g, i, s, e, col, colCount }) => {
+        const top = (s - spanStart) / 60 * pxPerHour;
+        const height = Math.max(16, (e - s) / 60 * pxPerHour);
+        const widthPct = 100 / colCount;
+        const leftPct = col * widthPct;
+
+        const block = document.createElement('div');
+        block.className = 'daytrack-block' + (g.done ? ' done' : '') + (isPast ? ' readonly' : '');
+        block.style.top = top + 'px';
+        block.style.height = height + 'px';
+        block.style.left = 'calc(' + leftPct + '% + 2px)';
+        block.style.width = 'calc(' + widthPct + '% - 4px)';
+        block.style.setProperty('--bucket-color', bucketColor(g.bucket));
+
+        const timeEl = document.createElement('div');
+        timeEl.className = 'daytrack-block-time';
+        timeEl.textContent = g.startTime;
+        block.appendChild(timeEl);
+
+        const textEl = document.createElement('div');
+        textEl.className = 'daytrack-block-text';
+        textEl.textContent = (isFrogTask(g) ? '🐸 ' : '') + g.text;
+        block.appendChild(textEl);
+
+        if (!isPast) {
+          wireBlockInteraction(block, { i, top, height, goalId: g.id, dateKey }, { pxPerHour, spanStart, spanEnd, totalPx });
+        }
+
+        timelineEl.appendChild(block);
+      });
     }
-    emptyEl.style.display = 'none';
-
-    items.sort((a, b) => a.s - b.s || a.e - b.e);
-
-    // Greedy interval-graph column assignment so overlapping blocks sit
-    // side by side instead of stacking on top of each other.
-    const colEndTimes = [];
-    items.forEach(item => {
-      let col = colEndTimes.findIndex(end => end <= item.s);
-      if (col === -1) { col = colEndTimes.length; colEndTimes.push(item.e); }
-      else { colEndTimes[col] = item.e; }
-      item.col = col;
-    });
-
-    let cluster = null;
-    const clusters = [];
-    items.forEach(item => {
-      if (!cluster || item.s >= cluster.maxEnd) {
-        cluster = { items: [item], maxEnd: item.e };
-        clusters.push(cluster);
-      } else {
-        cluster.items.push(item);
-        cluster.maxEnd = Math.max(cluster.maxEnd, item.e);
-      }
-    });
-    clusters.forEach(c => {
-      const colCount = Math.max.apply(null, c.items.map(it => it.col)) + 1;
-      c.items.forEach(it => { it.colCount = colCount; });
-    });
-
-    items.forEach(({ g, i, s, e, col, colCount }) => {
-      const top = (s - spanStart) / 60 * pxPerHour;
-      const height = Math.max(16, (e - s) / 60 * pxPerHour);
-      const widthPct = 100 / colCount;
-      const leftPct = col * widthPct;
-
-      const block = document.createElement('div');
-      block.className = 'daytrack-block' + (g.done ? ' done' : '');
-      block.style.top = top + 'px';
-      block.style.height = height + 'px';
-      block.style.left = 'calc(' + leftPct + '% + 2px)';
-      block.style.width = 'calc(' + widthPct + '% - 4px)';
-      block.style.setProperty('--bucket-color', bucketColor(g.bucket));
-
-      const timeEl = document.createElement('div');
-      timeEl.className = 'daytrack-block-time';
-      timeEl.textContent = g.startTime;
-      block.appendChild(timeEl);
-
-      const textEl = document.createElement('div');
-      textEl.className = 'daytrack-block-text';
-      textEl.textContent = (isFrogTask(g) ? '🐸 ' : '') + g.text;
-      block.appendChild(textEl);
-
-      wireBlockInteraction(block, { i, top, height, goalId: g.id }, { pxPerHour, spanStart, spanEnd, totalPx });
-
-      timelineEl.appendChild(block);
-    });
 
     renderNowLine();
   }
+
+  // Click an empty spot on the timeline to add a task starting there -
+  // ignored on past days (read-only) and ignored when the click actually
+  // landed on a block/hour-line rather than empty space.
+  document.getElementById('daytrackTimeline').addEventListener('click', (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (dayTrackerViewDate < getActiveDateString()) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const pxPerHour = window.innerWidth <= 480 ? 24 : 32;
+    const spanStart = WAKE_HOUR * 60;
+    const minutesFromStart = (e.clientY - rect.top) / pxPerHour * 60;
+    const totalMin = spanStart + Math.round(minutesFromStart / 15) * 15;
+    const hh = Math.floor(totalMin / 60), mm = totalMin % 60;
+    openQuickAddModal(String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0'));
+  });
+
+  function openQuickAddModal(prefillTime) {
+    document.getElementById('quickAddTitle').textContent = 'New task — ' + dayTrackerDateLabel(dayTrackerViewDate);
+    document.getElementById('quickAddText').value = '';
+    document.getElementById('quickAddTime').value = prefillTime || '';
+    const durSel = document.getElementById('quickAddDuration');
+    durSel.innerHTML = DURATION_OPTIONS.map(o => '<option value="' + o.value + '">' + o.label + '</option>').join('');
+    durSel.value = '30';
+    document.getElementById('quickAddModalBg').classList.add('show');
+    document.getElementById('quickAddText').focus();
+  }
+  function closeQuickAddModal() { document.getElementById('quickAddModalBg').classList.remove('show'); }
+  document.getElementById('quickAddClose').addEventListener('click', closeQuickAddModal);
+  document.getElementById('quickAddCancel').addEventListener('click', closeQuickAddModal);
+  document.getElementById('quickAddModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'quickAddModalBg') closeQuickAddModal();
+  });
+  document.getElementById('quickAddSave').addEventListener('click', () => {
+    const text = document.getElementById('quickAddText').value.trim();
+    if (!text) return;
+    const key = 'goals:' + dayTrackerViewDate;
+    const list = getGoals(key);
+    const durVal = document.getElementById('quickAddDuration').value;
+    list.push(HQ.normalizeGoal({
+      text,
+      done: false,
+      startTime: document.getElementById('quickAddTime').value || null,
+      durationMinutes: durVal ? parseInt(durVal, 10) : null,
+      bucket: HQ.getActiveBucket() || null,
+    }));
+    setGoals(key, list);
+    closeQuickAddModal();
+    reloadDayTracker();
+  });
 
   // A moving "now" line on the Day Tracker, so you don't have to eyeball
   // the hour labels to see where the current time falls. Repositioned by
   // its own short interval (see Boot) in addition to every full re-render,
   // so it keeps creeping forward even if nothing else changes for a while.
+  // Only shown while viewing today - a "now" line on a different day's
+  // timeline would be meaningless.
   function renderNowLine() {
     const timelineEl = document.getElementById('daytrackTimeline');
     if (!timelineEl) return;
+    let line = document.getElementById('daytrackNowLine');
+    if (dayTrackerViewDate !== getActiveDateString()) {
+      if (line) line.style.display = 'none';
+      return;
+    }
     const now = new Date();
     const nowMinutes = now.getHours() * 60 + now.getMinutes();
     const spanStart = WAKE_HOUR * 60;
     const spanEnd = SLEEP_HOUR * 60;
-    let line = document.getElementById('daytrackNowLine');
     if (nowMinutes < spanStart || nowMinutes > spanEnd) {
       if (line) line.style.display = 'none';
       return;
@@ -2540,7 +2705,7 @@ body::after {
       longPressTimer = setTimeout(() => {
         if (dragging && !moved) {
           longPressFired = true;
-          openTaskDetailModal(geom.goalId);
+          openTaskDetailModal(geom.goalId, geom.dateKey);
         }
       }, LONG_PRESS_MS);
     });
@@ -2564,11 +2729,11 @@ body::after {
       block.classList.remove('dragging');
       if (longPressFired) return;
       if (!moved) {
-        const current = getGoals(todayKey()).find(x => x.id === geom.goalId);
+        const current = getGoals(geom.dateKey).find(x => x.id === geom.goalId);
         if (!current) return;
-        if (current.done) uncompleteGoal(todayKey(), geom.goalId);
-        else completeGoal(todayKey(), geom.goalId);
-        loadToday();
+        if (current.done) uncompleteGoal(geom.dateKey, geom.goalId);
+        else completeGoal(geom.dateKey, geom.goalId);
+        reloadDayTracker();
         return;
       }
       const finalTop = parseFloat(block.style.top) || 0;
@@ -2576,12 +2741,12 @@ body::after {
       const newStartMin = span.spanStart + Math.round(minutesFromStart / 15) * 15;
       const hh = Math.floor(newStartMin / 60);
       const mm = newStartMin % 60;
-      const list = getGoals(todayKey());
+      const list = getGoals(geom.dateKey);
       if (list[geom.i]) {
         list[geom.i].startTime = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
-        setGoals(todayKey(), list);
+        setGoals(geom.dateKey, list);
       }
-      loadToday();
+      reloadDayTracker();
     });
     block.addEventListener('pointercancel', () => {
       dragging = false;
@@ -2592,22 +2757,25 @@ body::after {
 
   // ---------- Task Detail modal (long-press a Day Tracker block) ----------
   let activeTaskDetailId = null;
-  function findTodayGoalById(id) {
-    const list = getGoals(todayKey());
+  let activeTaskDetailKey = null;
+  function findViewedGoalById(key, id) {
+    const list = getGoals(key);
     const idx = list.findIndex(g => g.id === id);
     return { list, idx, goal: idx === -1 ? null : list[idx] };
   }
-  function openTaskDetailModal(goalId) {
+  function openTaskDetailModal(goalId, dateKey) {
     activeTaskDetailId = goalId;
+    activeTaskDetailKey = dateKey;
     renderTaskDetailModal();
     document.getElementById('taskDetailModalBg').classList.add('show');
   }
   function closeTaskDetailModal() {
     document.getElementById('taskDetailModalBg').classList.remove('show');
     activeTaskDetailId = null;
+    activeTaskDetailKey = null;
   }
   function renderTaskDetailModal() {
-    const { goal } = findTodayGoalById(activeTaskDetailId);
+    const { goal } = findViewedGoalById(activeTaskDetailKey, activeTaskDetailId);
     if (!goal) { closeTaskDetailModal(); return; }
     document.getElementById('taskDetailTitle').textContent = goal.text;
     document.getElementById('taskDetailTime').value = goal.startTime || '';
@@ -2666,18 +2834,18 @@ body::after {
     if (e.target.id === 'taskDetailModalBg') closeTaskDetailModal();
   });
   document.getElementById('taskDetailTime').addEventListener('change', (e) => {
-    const { list, idx } = findTodayGoalById(activeTaskDetailId);
+    const { list, idx } = findViewedGoalById(activeTaskDetailKey, activeTaskDetailId);
     if (idx === -1) return;
     list[idx].startTime = e.target.value || null;
-    setGoals(todayKey(), list);
-    loadToday();
+    setGoals(activeTaskDetailKey, list);
+    reloadDayTracker();
   });
   document.getElementById('taskDetailDuration').addEventListener('change', (e) => {
-    const { list, idx } = findTodayGoalById(activeTaskDetailId);
+    const { list, idx } = findViewedGoalById(activeTaskDetailKey, activeTaskDetailId);
     if (idx === -1) return;
     list[idx].durationMinutes = e.target.value ? parseInt(e.target.value, 10) : null;
-    setGoals(todayKey(), list);
-    loadToday();
+    setGoals(activeTaskDetailKey, list);
+    reloadDayTracker();
   });
   document.getElementById('taskDetailLinkNoteBtn').addEventListener('click', () => {
     const sel = document.getElementById('taskDetailLinkNoteSelect');
@@ -3802,6 +3970,7 @@ body::after {
   rollover();
   applyDailyTemplates();
   processStreak();
+  dayTrackerViewDate = getActiveDateString();
   populateBucketSelect(document.getElementById('projBucketInput'), false);
   renderBucketFilterRow();
   loadToday();
