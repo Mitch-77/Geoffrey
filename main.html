@@ -1500,7 +1500,10 @@ body::after {
     <div class="modal">
       <div class="modal-top">
         <h3 id="taskDetailTitle">Task</h3>
-        <button type="button" class="modal-close-btn" id="taskDetailClose" aria-label="Close">×</button>
+        <div class="modal-top-actions">
+          <button type="button" class="proj-delete-btn" id="taskDetailDelete">Delete task</button>
+          <button type="button" class="modal-close-btn" id="taskDetailClose" aria-label="Close">×</button>
+        </div>
       </div>
       <div class="field-row">
         <div class="field"><label>Start time</label><input type="time" id="taskDetailTime"></div>
@@ -2890,6 +2893,16 @@ body::after {
   document.getElementById('taskDetailClose').addEventListener('click', closeTaskDetailModal);
   document.getElementById('taskDetailModalBg').addEventListener('click', (e) => {
     if (e.target.id === 'taskDetailModalBg') closeTaskDetailModal();
+  });
+  document.getElementById('taskDetailDelete').addEventListener('click', () => {
+    const { list, idx, goal } = findViewedGoalById(activeTaskDetailKey, activeTaskDetailId);
+    if (idx === -1) return;
+    if (!confirm('Delete "' + goal.text + '"?')) return;
+    list.splice(idx, 1);
+    setGoals(activeTaskDetailKey, list);
+    const dateStr = activeTaskDetailKey.slice('goals:'.length);
+    closeTaskDetailModal();
+    reloadDateViews(dateStr);
   });
   document.getElementById('taskDetailTime').addEventListener('change', (e) => {
     const { list, idx } = findViewedGoalById(activeTaskDetailKey, activeTaskDetailId);
