@@ -746,6 +746,12 @@ body::after {
   border-left: 1px solid rgba(255,255,255,0.08);
 }
 .daytrack-timeline.clickable { cursor: copy; }
+.quickadd-repeat-row {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--text-secondary);
+  margin-bottom: 14px; cursor: pointer;
+}
+.quickadd-repeat-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #6BE3A4; cursor: pointer; }
 .daytrack-block.readonly { cursor: default; opacity: 0.75; }
 .daytrack-hour-line { position: absolute; left: 0; right: 0; border-top: 1px solid rgba(255,255,255,0.05); }
 .daytrack-now-line {
@@ -1520,9 +1526,17 @@ body::after {
         <input type="text" id="quickAddText" placeholder="What needs doing?" autocomplete="off">
       </div>
       <div class="field-row">
+        <div class="field"><label>Bucket</label><select id="quickAddBucket"></select></div>
+        <div class="field"><label>Urgency</label><select id="quickAddUrgency"></select></div>
+      </div>
+      <div class="field-row">
         <div class="field"><label>Start time</label><input type="time" id="quickAddTime"></div>
         <div class="field"><label>Duration</label><select id="quickAddDuration"></select></div>
       </div>
+      <label class="quickadd-repeat-row">
+        <input type="checkbox" id="quickAddRepeat">
+        <span>🔁 Repeat daily</span>
+      </label>
       <div class="modal-actions">
         <button type="button" class="gm-polish" id="quickAddCancel">Cancel</button>
         <button type="button" class="gm-add" id="quickAddSave">Add</button>
@@ -1675,7 +1689,11 @@ body::after {
     let changed = false;
     templates.forEach(t => {
       if (texts.has(t.text)) return;
-      today.push(HQ.normalizeGoal({ text: t.text, done: false, bucket: t.bucket, projectId: t.projectId }));
+      today.push(HQ.normalizeGoal({
+        text: t.text, done: false, bucket: t.bucket, projectId: t.projectId,
+        urgency: t.urgency, importance: t.importance, state: t.state,
+        startTime: t.startTime, durationMinutes: t.durationMinutes,
+      }));
       texts.add(t.text);
       changed = true;
     });
@@ -1900,7 +1918,11 @@ body::after {
             // it from applyDailyTemplates() and it stops coming back.
             if (HQ.isDailyTemplate(original)) {
               HQ.removeDailyTemplate(original);
-              HQ.addDailyTemplate({ text: next, bucket: list[idx].bucket, projectId: list[idx].projectId });
+              HQ.addDailyTemplate({
+                text: next, bucket: list[idx].bucket, projectId: list[idx].projectId,
+                urgency: list[idx].urgency, importance: list[idx].importance, state: list[idx].state,
+                startTime: list[idx].startTime, durationMinutes: list[idx].durationMinutes,
+              });
               renderRepeatingList();
             }
           }
@@ -2002,7 +2024,12 @@ body::after {
     { value: '180', label: '3h' },
   ];
 
-  function buildGoalRow(goal, idx, key, readOnly, reload) {
+  function buildGoalRow(goal, idx, key, readOnly) {
+    // Computed here (rather than passed in) so every handler in this row
+    // refreshes every view that could be showing this date - not just
+    // whichever single list this particular row happens to be rendered
+    // inside of.
+    const reload = () => reloadDateViews(key.slice('goals:'.length));
     const li = document.createElement('li');
     li.className = 'gm-row';
     li.dataset.idx = String(idx);
@@ -2165,7 +2192,11 @@ body::after {
         if (HQ.isDailyTemplate(goal.text)) {
           HQ.removeDailyTemplate(goal.text);
         } else {
-          HQ.addDailyTemplate({ text: goal.text, bucket: goal.bucket, projectId: goal.projectId });
+          HQ.addDailyTemplate({
+            text: goal.text, bucket: goal.bucket, projectId: goal.projectId,
+            urgency: goal.urgency, importance: goal.importance, state: goal.state,
+            startTime: goal.startTime, durationMinutes: goal.durationMinutes,
+          });
         }
         renderRepeatingList();
         reload();
@@ -2332,7 +2363,7 @@ body::after {
 
     const expanded = !!expandedListState[key];
     const visibleCount = expanded ? indexed.length : Math.min(5, indexed.length);
-    indexed.slice(0, visibleCount).forEach(({ g, i }) => listEl.appendChild(buildGoalRow(g, i, key, readOnly, reload)));
+    indexed.slice(0, visibleCount).forEach(({ g, i }) => listEl.appendChild(buildGoalRow(g, i, key, readOnly)));
 
     if (indexed.length > 5) {
       const toggle = document.createElement('button');
@@ -2450,9 +2481,23 @@ body::after {
   // Block interactions (check/drag/long-press) write through whichever day
   // is currently on screen; loadToday() only makes sense to re-run when
   // that day IS today, otherwise just re-paint the timeline itself.
-  function reloadDayTracker() {
-    if (dayTrackerViewDate === getActiveDateString()) loadToday();
-    else renderDayTracker();
+  // Single place that knows which views can be showing a given date's
+  // tasks, and refreshes all of them - previously each surface (Today
+  // list, Tomorrow list, Future Plan, Day Tracker) only refreshed itself,
+  // so e.g. adding a task to tomorrow via the Day Tracker wouldn't show up
+  // in the Plan Tomorrow card until something else forced a reload.
+  function reloadDateViews(dateStr) {
+    const todayStr = getActiveDateString();
+    const tomorrowStr = getTomorrowDateString();
+    if (dateStr === todayStr) {
+      loadToday(); // already refreshes the Day Tracker itself when relevant
+    } else if (dateStr === tomorrowStr) {
+      loadTomorrow();
+      if (dayTrackerViewDate === dateStr) renderDayTracker();
+    } else {
+      renderFuturePlan();
+      if (dayTrackerViewDate === dateStr) renderDayTracker();
+    }
   }
   function changeDayTrackerDate(deltaDays) {
     const d = new Date(dayTrackerViewDate + 'T00:00:00');
@@ -2618,9 +2663,16 @@ body::after {
     document.getElementById('quickAddTitle').textContent = 'New task — ' + dayTrackerDateLabel(dayTrackerViewDate);
     document.getElementById('quickAddText').value = '';
     document.getElementById('quickAddTime').value = prefillTime || '';
+    const bucketSel = document.getElementById('quickAddBucket');
+    populateBucketSelect(bucketSel, true);
+    bucketSel.value = HQ.getActiveBucket() || '';
+    const urgencySel = document.getElementById('quickAddUrgency');
+    urgencySel.innerHTML = URGENCY_OPTIONS.map(o => '<option value="' + o.value + '">' + o.label + '</option>').join('');
+    urgencySel.value = 'not_urgent';
     const durSel = document.getElementById('quickAddDuration');
     durSel.innerHTML = DURATION_OPTIONS.map(o => '<option value="' + o.value + '">' + o.label + '</option>').join('');
     durSel.value = '30';
+    document.getElementById('quickAddRepeat').checked = false;
     document.getElementById('quickAddModalBg').classList.add('show');
     document.getElementById('quickAddText').focus();
   }
@@ -2636,16 +2688,22 @@ body::after {
     const key = 'goals:' + dayTrackerViewDate;
     const list = getGoals(key);
     const durVal = document.getElementById('quickAddDuration').value;
-    list.push(HQ.normalizeGoal({
-      text,
-      done: false,
-      startTime: document.getElementById('quickAddTime').value || null,
-      durationMinutes: durVal ? parseInt(durVal, 10) : null,
-      bucket: HQ.getActiveBucket() || null,
-    }));
+    const bucket = document.getElementById('quickAddBucket').value || null;
+    const urgency = document.getElementById('quickAddUrgency').value;
+    const startTime = document.getElementById('quickAddTime').value || null;
+    const durationMinutes = durVal ? parseInt(durVal, 10) : null;
+    const newGoal = HQ.normalizeGoal({ text, done: false, startTime, durationMinutes, bucket, urgency });
+    list.push(newGoal);
     setGoals(key, list);
+    if (document.getElementById('quickAddRepeat').checked) {
+      HQ.addDailyTemplate({
+        text, bucket, urgency, startTime, durationMinutes,
+        importance: newGoal.importance, state: newGoal.state, projectId: newGoal.projectId,
+      });
+      renderRepeatingList();
+    }
     closeQuickAddModal();
-    reloadDayTracker();
+    reloadDateViews(dayTrackerViewDate);
   });
 
   // A moving "now" line on the Day Tracker, so you don't have to eyeball
@@ -2733,7 +2791,7 @@ body::after {
         if (!current) return;
         if (current.done) uncompleteGoal(geom.dateKey, geom.goalId);
         else completeGoal(geom.dateKey, geom.goalId);
-        reloadDayTracker();
+        reloadDateViews(geom.dateKey.slice('goals:'.length));
         return;
       }
       const finalTop = parseFloat(block.style.top) || 0;
@@ -2746,7 +2804,7 @@ body::after {
         list[geom.i].startTime = String(hh).padStart(2, '0') + ':' + String(mm).padStart(2, '0');
         setGoals(geom.dateKey, list);
       }
-      reloadDayTracker();
+      reloadDateViews(geom.dateKey.slice('goals:'.length));
     });
     block.addEventListener('pointercancel', () => {
       dragging = false;
@@ -2838,14 +2896,14 @@ body::after {
     if (idx === -1) return;
     list[idx].startTime = e.target.value || null;
     setGoals(activeTaskDetailKey, list);
-    reloadDayTracker();
+    reloadDateViews(activeTaskDetailKey.slice('goals:'.length));
   });
   document.getElementById('taskDetailDuration').addEventListener('change', (e) => {
     const { list, idx } = findViewedGoalById(activeTaskDetailKey, activeTaskDetailId);
     if (idx === -1) return;
     list[idx].durationMinutes = e.target.value ? parseInt(e.target.value, 10) : null;
     setGoals(activeTaskDetailKey, list);
-    reloadDayTracker();
+    reloadDateViews(activeTaskDetailKey.slice('goals:'.length));
   });
   document.getElementById('taskDetailLinkNoteBtn').addEventListener('click', () => {
     const sel = document.getElementById('taskDetailLinkNoteSelect');
@@ -2887,7 +2945,7 @@ body::after {
     group.appendChild(header);
     const ul = document.createElement('ul');
     ul.className = 'goal-list gm-list';
-    indexed.forEach(({ g, i }) => ul.appendChild(buildGoalRow(g, i, key, false, renderFuturePlan)));
+    indexed.forEach(({ g, i }) => ul.appendChild(buildGoalRow(g, i, key, false)));
     group.appendChild(ul);
     return group;
   }
@@ -2945,7 +3003,7 @@ body::after {
   });
 
   // ---------- Add handlers ----------
-  function makeAddHandlers(input, addBtn, key, reload) {
+  function makeAddHandlers(input, addBtn, key) {
     function plainAdd(text) {
       const list = getGoals(key);
       // Default new goals to whatever bucket is currently filtered, so adding
@@ -2953,7 +3011,7 @@ body::after {
       list.push(HQ.normalizeGoal({ text, done: false, bucket: HQ.getActiveBucket() || null }));
       setGoals(key, list);
       input.value = '';
-      reload();
+      reloadDateViews(key.slice('goals:'.length));
     }
     addBtn.addEventListener('click', () => {
       const text = input.value.trim();
@@ -2968,14 +3026,12 @@ body::after {
   makeAddHandlers(
     document.getElementById('goalInput'),
     document.getElementById('goalAddBtn'),
-    todayKey(),
-    loadToday
+    todayKey()
   );
   makeAddHandlers(
     document.getElementById('tomorrowInput'),
     document.getElementById('tomorrowAddBtn'),
-    tomorrowKey(),
-    loadTomorrow
+    tomorrowKey()
   );
 
   // ---------- Headquarters: buckets, filter, projects, notes, quick note ----------

@@ -231,10 +231,23 @@
   function isDailyTemplate(text) {
     return getDailyTemplates().some((t) => t.text === text);
   }
-  function addDailyTemplate({ text, bucket, projectId }) {
+  function addDailyTemplate({ text, bucket, projectId, urgency, importance, state, startTime, durationMinutes }) {
     const list = getDailyTemplates();
     if (list.some((t) => t.text === text)) return;
-    list.push({ text, bucket: bucket || null, projectId: projectId || null });
+    list.push({
+      text,
+      bucket: bucket || null,
+      projectId: projectId || null,
+      // Previously only text/bucket/project were kept, so a repeating
+      // task's schedule (and priority tags) got silently dropped on
+      // every fresh day - the new instance would have no start time at
+      // all and wouldn't show up on the Day Tracker.
+      urgency: urgency || null,
+      importance: importance || null,
+      state: state || null,
+      startTime: startTime || null,
+      durationMinutes: durationMinutes || null,
+    });
     setDailyTemplates(list);
   }
   function removeDailyTemplate(text) {
