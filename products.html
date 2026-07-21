@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#050506">
+<title>Product Hub</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="sync.js" defer></script>
+<script src="topbar.js" defer></script>
+<style>
+:root {
+  --text-primary: #FAFAFA;
+  --text-secondary: #B8B6B0;
+  --text-tertiary: #76746E;
+  --success: #6BE3A4;
+  --warning: #F2C063;
+  --danger: #FF6B6B;
+  --sky: #7DD3FC;
+  --violet: #A490D6;
+  --font: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; padding: 0;
+  background: #050506;
+  color: var(--text-secondary);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+body {
+  min-height: 100vh;
+  position: relative;
+  overflow-x: hidden;
+  padding: max(28px, env(safe-area-inset-top)) 20px 60px;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background:
+    radial-gradient(circle at 82% 14%, rgba(164, 144, 214, 0.14), transparent 45%),
+    radial-gradient(circle at 18% 90%, rgba(180, 180, 200, 0.06), transparent 50%);
+  filter: blur(40px);
+  pointer-events: none;
+  z-index: -2;
+  animation: drift 36s ease-in-out infinite alternate;
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0;
+  background-image: radial-gradient(rgba(255,255,255,0.014) 1px, transparent 1px);
+  background-size: 3px 3px;
+  pointer-events: none;
+  z-index: -1;
+}
+@keyframes drift {
+  0%   { transform: translate3d(0,0,0); }
+  100% { transform: translate3d(-22px, 14px, 0); }
+}
+.page { max-width: 1100px; margin: 0 auto; }
+.dash-title {
+  margin: 0 0 6px;
+  font-size: 28px; font-weight: 700; letter-spacing: -0.025em;
+  background: linear-gradient(180deg, #FFFFFF 0%, #C7C4BC 120%);
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent; color: transparent;
+}
+.dash-sub { margin: 0 0 22px; font-size: 13px; color: var(--text-tertiary); }
+@media (max-width: 480px) { .dash-title { font-size: 22px; } }
+
+.section { margin-top: 8px; margin-bottom: 26px; }
+.section-title {
+  font-size: 10.5px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase;
+  color: var(--text-tertiary);
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 12px;
+}
+.section-title::before { content: ''; width: 18px; height: 1px; background: var(--text-tertiary); opacity: 0.6; }
+.section-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, rgba(255,255,255,0.08), transparent); }
+.section-sub { font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-tertiary); margin: 18px 0 10px; }
+.section-sub:first-child { margin-top: 0; }
+
+.card-panel {
+  background: rgba(255,255,255,0.04);
+  border-radius: 16px;
+  padding: 20px;
+  backdrop-filter: blur(24px) saturate(1.2);
+  -webkit-backdrop-filter: blur(24px) saturate(1.2);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.45);
+}
+
+/* ----- Add-idea form ----- */
+.idea-add-row { display: flex; flex-direction: column; margin-bottom: 18px; }
+.field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
+.field label {
+  font-size: 11px; color: var(--text-tertiary); font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+.field input, .field select, .field textarea {
+  background: rgba(0,0,0,0.28);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 14px;
+  padding: 10px 12px; border-radius: 10px; outline: none;
+  resize: vertical;
+}
+.field input:focus, .field select:focus, .field textarea:focus { border-color: rgba(255,255,255,0.28); }
+.field select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M0 0l5 6 5-6z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+}
+.field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 480px) { .field-row { grid-template-columns: 1fr; } }
+.idea-add-btn {
+  align-self: flex-start; margin-top: 4px;
+  padding: 11px 20px; border: 0; border-radius: 12px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B; font-family: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 2px 8px rgba(0,0,0,0.35), 0 8px 22px rgba(0,0,0,0.25);
+}
+.idea-add-btn:hover { filter: brightness(1.06); }
+
+/* ----- Product card grid ----- */
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.product-card {
+  position: relative;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-left: 3px solid var(--accent, rgba(255,255,255,0.14));
+  display: flex; flex-direction: column; gap: 10px;
+}
+.product-card-name { font-size: 14.5px; font-weight: 700; color: var(--text-primary); padding-right: 20px; }
+.product-card-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.badge {
+  font-family: var(--font-mono);
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.03em;
+  padding: 3px 8px; border-radius: 999px;
+  white-space: nowrap;
+}
+.badge-type { background: rgba(164,144,214,0.14); color: var(--violet); }
+.badge-source { background: rgba(125,211,252,0.14); color: var(--sky); }
+.product-card-meta { font-size: 11.5px; color: var(--text-tertiary); font-variant-numeric: tabular-nums; }
+.product-card-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: auto; }
+.card-btn {
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.05);
+  color: var(--text-primary);
+  font-family: inherit; font-size: 11.5px; font-weight: 600;
+  padding: 7px 11px; border-radius: 8px; cursor: pointer;
+}
+.card-btn:hover { background: rgba(255,255,255,0.10); }
+.card-btn.primary {
+  background: rgba(107,227,164,0.14); border-color: rgba(107,227,164,0.3); color: var(--success);
+}
+.card-btn.primary:hover { background: rgba(107,227,164,0.22); }
+.card-delete {
+  position: absolute; top: 10px; right: 10px;
+  border: 0; background: transparent; color: var(--text-tertiary);
+  font-size: 16px; cursor: pointer; opacity: 0.55; padding: 2px 6px;
+}
+.card-delete:hover { opacity: 1; color: var(--danger); }
+.launch-date-tag {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: var(--font-mono); font-size: 11px; font-weight: 700;
+  color: var(--warning);
+}
+.launch-date-tag.off-cycle::after { content: '(off-cycle)'; color: var(--text-tertiary); font-weight: 500; margin-left: 2px; }
+.mini-num-row { display: flex; gap: 10px; }
+.mini-num-field { display: flex; flex-direction: column; gap: 3px; flex: 1; }
+.mini-num-field label { font-size: 9.5px; color: var(--text-tertiary); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+.mini-num-field input {
+  width: 100%; background: rgba(0,0,0,0.28); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: var(--text-primary); font-family: var(--font-mono); font-size: 13px;
+  padding: 6px 8px; outline: none;
+}
+.empty-state { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 14px 0; }
+
+/* ----- Post-mortem filter row ----- */
+.pm-filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.pm-filter-row select {
+  appearance: none; -webkit-appearance: none; -moz-appearance: none;
+  padding: 8px 26px 8px 10px;
+  border: 1px solid rgba(255,255,255,0.10); border-radius: 9px;
+  background-color: rgba(0,0,0,0.28);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='9' height='5'><path d='M0 0l4.5 5 4.5-5z' fill='%23B8B6B0'/></svg>");
+  background-repeat: no-repeat; background-position: right 9px center;
+  color: var(--text-primary); font-family: inherit; font-size: 12px; cursor: pointer;
+}
+.pm-card { display: flex; flex-direction: column; gap: 10px; }
+.pm-qa-q {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-tertiary); margin-bottom: 2px;
+}
+.pm-qa-a { font-size: 12.5px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: break-word; }
+.pm-stats-row { display: flex; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.pm-stats-row b { color: var(--warning); }
+
+/* ----- Modals ----- */
+.modal-bg {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.65); backdrop-filter: blur(6px);
+  z-index: 100; align-items: center; justify-content: center; padding: 20px;
+  opacity: 0; transition: opacity 0.18s ease;
+}
+.modal-bg.show { display: flex; opacity: 1; }
+.modal {
+  width: 100%; max-width: 460px;
+  background: #121214;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 16px;
+  padding: 22px; max-height: 88vh; overflow-y: auto;
+  transform: scale(0.92) translateY(10px); opacity: 0;
+  transition: transform 0.32s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease;
+}
+.modal-bg.show .modal { transform: scale(1) translateY(0); opacity: 1; }
+.modal-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.modal-top h3 { margin: 0; font-size: 17px; font-weight: 700; color: var(--text-primary); }
+.modal-close-btn { border: 0; background: transparent; color: var(--text-tertiary); font-size: 22px; cursor: pointer; line-height: 1; padding: 0 4px; }
+.modal-close-btn:hover { color: var(--text-primary); }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.gm-add {
+  padding: 11px 20px; border: 0; border-radius: 12px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #E8E5DD 100%);
+  color: #0A0A0B; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.gm-add:hover { filter: brightness(1.06); }
+.gm-polish {
+  padding: 11px 18px; border: 1px solid rgba(255,255,255,0.10); border-radius: 12px;
+  background: rgba(255,255,255,0.04); color: var(--text-primary);
+  font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer;
+}
+.gm-polish:hover { background: rgba(255,255,255,0.07); }
+
+@media (max-width: 480px) {
+  body { padding: max(20px, env(safe-area-inset-top)) 14px 50px; }
+  .card-panel { padding: 16px; }
+  .product-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1 class="dash-title">Product Hub</h1>
+  <p class="dash-sub">Idea Dump → Next in Line → Active Test → Post-Mortem.</p>
+
+  <div class="section">
+    <div class="section-title">Product Idea Bank</div>
+    <div class="card-panel">
+      <div class="idea-add-row">
+        <div class="field">
+          <label>Product name</label>
+          <input type="text" id="ideaNameInput" placeholder="What's the idea?" autocomplete="off">
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Product Type</label>
+            <select id="ideaTypeInput">
+              <option value="emotional_ai">Emotional AI</option>
+              <option value="wow_product">Wow Product</option>
+              <option value="problem_solver">Problem-Solver</option>
+              <option value="niche_passion">Niche/Passion</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Content Source</label>
+            <select id="ideaSourceInput">
+              <option value="ai_generation">AI Generation</option>
+              <option value="ripping_curating">Ripping/Curating</option>
+              <option value="self_filmed_ugc">Self-Filmed/UGC</option>
+              <option value="hybrid">Hybrid</option>
+            </select>
+          </div>
+        </div>
+        <button type="button" class="idea-add-btn" id="ideaAddBtn">+ Add idea</button>
+      </div>
+      <div class="product-grid" id="ideaGrid"></div>
+      <div class="empty-state" id="ideaEmpty">No ideas yet — dump one above.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Next in Line Queue</div>
+    <div class="card-panel">
+      <div class="section-sub">Active tests</div>
+      <div class="product-grid" id="testingGrid"></div>
+      <div class="empty-state" id="testingEmpty">Nothing being tested right now.</div>
+      <div class="section-sub">Queued (Mon / Wed / Sun launches)</div>
+      <div class="product-grid" id="queueGrid"></div>
+      <div class="empty-state" id="queueEmpty">Nothing queued — promote an idea above.</div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Post-Mortem Log</div>
+    <div class="card-panel">
+      <div class="pm-filter-row">
+        <select id="pmFilterType">
+          <option value="">All product types</option>
+          <option value="emotional_ai">Emotional AI</option>
+          <option value="wow_product">Wow Product</option>
+          <option value="problem_solver">Problem-Solver</option>
+          <option value="niche_passion">Niche/Passion</option>
+          <option value="other">Other</option>
+        </select>
+        <select id="pmFilterSource">
+          <option value="">All content sources</option>
+          <option value="ai_generation">AI Generation</option>
+          <option value="ripping_curating">Ripping/Curating</option>
+          <option value="self_filmed_ugc">Self-Filmed/UGC</option>
+          <option value="hybrid">Hybrid</option>
+        </select>
+      </div>
+      <div class="product-grid" id="pmGrid"></div>
+      <div class="empty-state" id="pmEmpty">No post-mortems logged yet.</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Queue (set target launch date) modal -->
+<div class="modal-bg" id="queueModalBg">
+  <div class="modal">
+    <div class="modal-top">
+      <h3>Queue for launch</h3>
+      <button type="button" class="modal-close-btn" id="queueModalClose" aria-label="Close">×</button>
+    </div>
+    <div class="field">
+      <label>Target launch date</label>
+      <input type="date" id="queueDateInput">
+    </div>
+    <div class="empty-state" id="queueOffCycleHint" style="display:none;">Heads up — that's not a Monday, Wednesday, or Sunday.</div>
+    <div class="modal-actions">
+      <button type="button" class="gm-polish" id="queueModalCancel">Cancel</button>
+      <button type="button" class="gm-add" id="queueModalSave">Queue it</button>
+    </div>
+  </div>
+</div>
+
+<!-- Post-mortem modal -->
+<div class="modal-bg" id="pmModalBg">
+  <div class="modal">
+    <div class="modal-top">
+      <h3 id="pmModalTitle">Post-Mortem</h3>
+      <button type="button" class="modal-close-btn" id="pmModalClose" aria-label="Close">×</button>
+    </div>
+    <div class="field-row">
+      <div class="field"><label>Views accumulated</label><input type="number" min="0" id="pmViewsInput"></div>
+      <div class="field"><label>Orders generated</label><input type="number" min="0" id="pmOrdersInput"></div>
+    </div>
+    <div class="field">
+      <label>Why did it fail?</label>
+      <textarea id="pmWhyInput" rows="2"></textarea>
+    </div>
+    <div class="field">
+      <label>What could have been done better?</label>
+      <textarea id="pmImproveInput" rows="2"></textarea>
+    </div>
+    <div class="field">
+      <label>What's the key lesson?</label>
+      <textarea id="pmLessonInput" rows="2"></textarea>
+    </div>
+    <div class="modal-actions">
+      <button type="button" class="gm-polish" id="pmModalCancel">Cancel</button>
+      <button type="button" class="gm-add" id="pmModalSave">Save &amp; archive</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  function storeGet(key, fallback) {
+    try {
+      const raw = localStorage.getItem(key);
+      if (raw == null) return fallback;
+      const parsed = JSON.parse(raw);
+      return parsed == null ? fallback : parsed;
+    } catch (e) { return fallback; }
+  }
+  function storeSet(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); } catch (e) {}
+  }
+  function uid() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  const PRODUCTS_KEY = 'products:items';
+  function getProducts() { return storeGet(PRODUCTS_KEY, []); }
+  function setProducts(list) { storeSet(PRODUCTS_KEY, list); }
+  function updateProduct(id, patch) {
+    const list = getProducts();
+    const idx = list.findIndex(p => p.id === id);
+    if (idx === -1) return;
+    list[idx] = Object.assign({}, list[idx], patch);
+    setProducts(list);
+  }
+  function deleteProduct(id) {
+    setProducts(getProducts().filter(p => p.id !== id));
+  }
+
+  const TYPE_LABELS = {
+    emotional_ai: 'Emotional AI', wow_product: 'Wow Product', problem_solver: 'Problem-Solver',
+    niche_passion: 'Niche/Passion', other: 'Other',
+  };
+  const SOURCE_LABELS = {
+    ai_generation: 'AI Generation', ripping_curating: 'Ripping/Curating',
+    self_filmed_ugc: 'Self-Filmed/UGC', hybrid: 'Hybrid',
+  };
+
+  function formatDate(yyyy_mm_dd) {
+    const parts = yyyy_mm_dd.split('-').map(Number);
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    const wk = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][d.getDay()];
+    const mo = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];
+    return wk + ', ' + mo + ' ' + d.getDate();
+  }
+  function isLaunchDay(yyyy_mm_dd) {
+    // Launch cycle is Monday / Wednesday / Sunday.
+    const d = new Date(yyyy_mm_dd + 'T00:00:00');
+    const day = d.getDay(); // 0=Sun, 1=Mon, 3=Wed
+    return day === 0 || day === 1 || day === 3;
+  }
+
+  function badgesFor(p) {
+    const wrap = document.createElement('div');
+    wrap.className = 'product-card-badges';
+    const type = document.createElement('span');
+    type.className = 'badge badge-type';
+    type.textContent = TYPE_LABELS[p.productType] || p.productType;
+    wrap.appendChild(type);
+    const source = document.createElement('span');
+    source.className = 'badge badge-source';
+    source.textContent = SOURCE_LABELS[p.contentSource] || p.contentSource;
+    wrap.appendChild(source);
+    return wrap;
+  }
+
+  // ---------- Idea Bank ----------
+  function buildIdeaCard(p) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    const name = document.createElement('div');
+    name.className = 'product-card-name';
+    name.textContent = p.name;
+    card.appendChild(name);
+    card.appendChild(badgesFor(p));
+
+    const actions = document.createElement('div');
+    actions.className = 'product-card-actions';
+    const queueBtn = document.createElement('button');
+    queueBtn.type = 'button';
+    queueBtn.className = 'card-btn primary';
+    queueBtn.textContent = '→ Queue for launch';
+    queueBtn.addEventListener('click', () => openQueueModal(p.id));
+    actions.appendChild(queueBtn);
+    card.appendChild(actions);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'card-delete';
+    del.setAttribute('aria-label', 'Delete idea');
+    del.textContent = '×';
+    del.addEventListener('click', () => {
+      if (!confirm('Delete "' + p.name + '"?')) return;
+      deleteProduct(p.id);
+      renderAll();
+    });
+    card.appendChild(del);
+    return card;
+  }
+  function renderIdeaBank() {
+    const grid = document.getElementById('ideaGrid');
+    grid.innerHTML = '';
+    const ideas = getProducts().filter(p => p.status === 'idea');
+    document.getElementById('ideaEmpty').style.display = ideas.length ? 'none' : 'block';
+    ideas.slice().reverse().forEach(p => grid.appendChild(buildIdeaCard(p)));
+  }
+  document.getElementById('ideaAddBtn').addEventListener('click', () => {
+    const nameEl = document.getElementById('ideaNameInput');
+    const name = nameEl.value.trim();
+    if (!name) return;
+    const list = getProducts();
+    list.push({
+      id: uid(),
+      name,
+      status: 'idea',
+      productType: document.getElementById('ideaTypeInput').value,
+      contentSource: document.getElementById('ideaSourceInput').value,
+      targetLaunchDate: null,
+      whyItFailed: null, whatCouldBeImproved: null, keyLesson: null,
+      viewsAccumulated: 0, ordersGenerated: 0,
+      createdAt: new Date().toISOString(),
+    });
+    setProducts(list);
+    nameEl.value = '';
+    renderAll();
+  });
+
+  // ---------- Queue modal (Idea -> Next in Line) ----------
+  let queueModalProductId = null;
+  function openQueueModal(productId) {
+    queueModalProductId = productId;
+    const dateEl = document.getElementById('queueDateInput');
+    dateEl.value = '';
+    document.getElementById('queueOffCycleHint').style.display = 'none';
+    document.getElementById('queueModalBg').classList.add('show');
+  }
+  function closeQueueModal() { document.getElementById('queueModalBg').classList.remove('show'); }
+  document.getElementById('queueModalClose').addEventListener('click', closeQueueModal);
+  document.getElementById('queueModalCancel').addEventListener('click', closeQueueModal);
+  document.getElementById('queueModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'queueModalBg') closeQueueModal();
+  });
+  document.getElementById('queueDateInput').addEventListener('change', (e) => {
+    const hint = document.getElementById('queueOffCycleHint');
+    hint.style.display = (e.target.value && !isLaunchDay(e.target.value)) ? 'block' : 'none';
+  });
+  document.getElementById('queueModalSave').addEventListener('click', () => {
+    const date = document.getElementById('queueDateInput').value;
+    if (!date || !queueModalProductId) return;
+    updateProduct(queueModalProductId, { status: 'next_in_line', targetLaunchDate: date });
+    closeQueueModal();
+    renderAll();
+  });
+
+  // ---------- Next in Line: Active Tests + Queued ----------
+  function buildQueueCard(p) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.style.setProperty('--accent', 'rgba(242,192,99,0.5)');
+    const name = document.createElement('div');
+    name.className = 'product-card-name';
+    name.textContent = p.name;
+    card.appendChild(name);
+    card.appendChild(badgesFor(p));
+    if (p.targetLaunchDate) {
+      const tag = document.createElement('div');
+      tag.className = 'launch-date-tag' + (isLaunchDay(p.targetLaunchDate) ? '' : ' off-cycle');
+      tag.textContent = '🚀 ' + formatDate(p.targetLaunchDate);
+      card.appendChild(tag);
+    }
+    const actions = document.createElement('div');
+    actions.className = 'product-card-actions';
+    const startBtn = document.createElement('button');
+    startBtn.type = 'button';
+    startBtn.className = 'card-btn primary';
+    startBtn.textContent = '▶ Start testing';
+    startBtn.addEventListener('click', () => {
+      updateProduct(p.id, { status: 'testing' });
+      renderAll();
+    });
+    actions.appendChild(startBtn);
+    card.appendChild(actions);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'card-delete';
+    del.setAttribute('aria-label', 'Delete');
+    del.textContent = '×';
+    del.addEventListener('click', () => {
+      if (!confirm('Delete "' + p.name + '"?')) return;
+      deleteProduct(p.id);
+      renderAll();
+    });
+    card.appendChild(del);
+    return card;
+  }
+  function buildTestingCard(p) {
+    const card = document.createElement('div');
+    card.className = 'product-card';
+    card.style.setProperty('--accent', 'rgba(107,227,164,0.5)');
+    const name = document.createElement('div');
+    name.className = 'product-card-name';
+    name.textContent = p.name;
+    card.appendChild(name);
+    card.appendChild(badgesFor(p));
+
+    const numRow = document.createElement('div');
+    numRow.className = 'mini-num-row';
+    const viewsField = document.createElement('div');
+    viewsField.className = 'mini-num-field';
+    viewsField.innerHTML = '<label>Views</label>';
+    const viewsInput = document.createElement('input');
+    viewsInput.type = 'number'; viewsInput.min = '0';
+    viewsInput.value = p.viewsAccumulated || 0;
+    viewsInput.addEventListener('change', () => {
+      updateProduct(p.id, { viewsAccumulated: parseInt(viewsInput.value, 10) || 0 });
+    });
+    viewsField.appendChild(viewsInput);
+    numRow.appendChild(viewsField);
+    const ordersField = document.createElement('div');
+    ordersField.className = 'mini-num-field';
+    ordersField.innerHTML = '<label>Orders</label>';
+    const ordersInput = document.createElement('input');
+    ordersInput.type = 'number'; ordersInput.min = '0';
+    ordersInput.value = p.ordersGenerated || 0;
+    ordersInput.addEventListener('change', () => {
+      updateProduct(p.id, { ordersGenerated: parseInt(ordersInput.value, 10) || 0 });
+    });
+    ordersField.appendChild(ordersInput);
+    numRow.appendChild(ordersField);
+    card.appendChild(numRow);
+
+    const actions = document.createElement('div');
+    actions.className = 'product-card-actions';
+    const pmBtn = document.createElement('button');
+    pmBtn.type = 'button';
+    pmBtn.className = 'card-btn';
+    pmBtn.textContent = 'Log Post-Mortem';
+    pmBtn.addEventListener('click', () => openPostMortemModal(p.id));
+    actions.appendChild(pmBtn);
+    card.appendChild(actions);
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'card-delete';
+    del.setAttribute('aria-label', 'Delete');
+    del.textContent = '×';
+    del.addEventListener('click', () => {
+      if (!confirm('Delete "' + p.name + '"?')) return;
+      deleteProduct(p.id);
+      renderAll();
+    });
+    card.appendChild(del);
+    return card;
+  }
+  function renderNextInLine() {
+    const products = getProducts();
+    const testingGrid = document.getElementById('testingGrid');
+    testingGrid.innerHTML = '';
+    const testing = products.filter(p => p.status === 'testing');
+    document.getElementById('testingEmpty').style.display = testing.length ? 'none' : 'block';
+    testing.forEach(p => testingGrid.appendChild(buildTestingCard(p)));
+
+    const queueGrid = document.getElementById('queueGrid');
+    queueGrid.innerHTML = '';
+    const queued = products.filter(p => p.status === 'next_in_line')
+      .sort((a, b) => (a.targetLaunchDate || '9999').localeCompare(b.targetLaunchDate || '9999'));
+    document.getElementById('queueEmpty').style.display = queued.length ? 'none' : 'block';
+    queued.forEach(p => queueGrid.appendChild(buildQueueCard(p)));
+  }
+
+  // ---------- Post-mortem modal (Testing -> Completed) ----------
+  let pmModalProductId = null;
+  function openPostMortemModal(productId) {
+    pmModalProductId = productId;
+    const p = getProducts().find(x => x.id === productId);
+    if (!p) return;
+    document.getElementById('pmModalTitle').textContent = 'Post-Mortem — ' + p.name;
+    document.getElementById('pmViewsInput').value = p.viewsAccumulated || 0;
+    document.getElementById('pmOrdersInput').value = p.ordersGenerated || 0;
+    document.getElementById('pmWhyInput').value = p.whyItFailed || '';
+    document.getElementById('pmImproveInput').value = p.whatCouldBeImproved || '';
+    document.getElementById('pmLessonInput').value = p.keyLesson || '';
+    document.getElementById('pmModalBg').classList.add('show');
+  }
+  function closePostMortemModal() { document.getElementById('pmModalBg').classList.remove('show'); }
+  document.getElementById('pmModalClose').addEventListener('click', closePostMortemModal);
+  document.getElementById('pmModalCancel').addEventListener('click', closePostMortemModal);
+  document.getElementById('pmModalBg').addEventListener('click', (e) => {
+    if (e.target.id === 'pmModalBg') closePostMortemModal();
+  });
+  document.getElementById('pmModalSave').addEventListener('click', () => {
+    if (!pmModalProductId) return;
+    updateProduct(pmModalProductId, {
+      status: 'completed',
+      viewsAccumulated: parseInt(document.getElementById('pmViewsInput').value, 10) || 0,
+      ordersGenerated: parseInt(document.getElementById('pmOrdersInput').value, 10) || 0,
+      whyItFailed: document.getElementById('pmWhyInput').value.trim() || null,
+      whatCouldBeImproved: document.getElementById('pmImproveInput').value.trim() || null,
+      keyLesson: document.getElementById('pmLessonInput').value.trim() || null,
+    });
+    closePostMortemModal();
+    renderAll();
+  });
+
+  // ---------- Post-Mortem Log (Completed archive) ----------
+  function buildPostMortemCard(p) {
+    const card = document.createElement('div');
+    card.className = 'product-card pm-card';
+    card.style.setProperty('--accent', 'rgba(180,180,200,0.4)');
+    const name = document.createElement('div');
+    name.className = 'product-card-name';
+    name.textContent = p.name;
+    card.appendChild(name);
+    card.appendChild(badgesFor(p));
+
+    const stats = document.createElement('div');
+    stats.className = 'pm-stats-row';
+    stats.innerHTML = '<span>👁 <b>' + (p.viewsAccumulated || 0) + '</b></span><span>🛒 <b>' + (p.ordersGenerated || 0) + '</b></span>';
+    card.appendChild(stats);
+
+    [['Why it failed', p.whyItFailed], ['Could improve', p.whatCouldBeImproved], ['Key lesson', p.keyLesson]].forEach(([q, a]) => {
+      if (!a) return;
+      const qEl = document.createElement('div');
+      qEl.className = 'pm-qa-q';
+      qEl.textContent = q;
+      card.appendChild(qEl);
+      const aEl = document.createElement('div');
+      aEl.className = 'pm-qa-a';
+      aEl.textContent = a;
+      card.appendChild(aEl);
+    });
+
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'card-delete';
+    del.setAttribute('aria-label', 'Delete');
+    del.textContent = '×';
+    del.addEventListener('click', () => {
+      if (!confirm('Delete "' + p.name + '"?')) return;
+      deleteProduct(p.id);
+      renderAll();
+    });
+    card.appendChild(del);
+    return card;
+  }
+  function renderPostMortemLog() {
+    const grid = document.getElementById('pmGrid');
+    grid.innerHTML = '';
+    const typeFilter = document.getElementById('pmFilterType').value;
+    const sourceFilter = document.getElementById('pmFilterSource').value;
+    const completed = getProducts()
+      .filter(p => p.status === 'completed')
+      .filter(p => !typeFilter || p.productType === typeFilter)
+      .filter(p => !sourceFilter || p.contentSource === sourceFilter)
+      .slice().reverse();
+    document.getElementById('pmEmpty').style.display = completed.length ? 'none' : 'block';
+    completed.forEach(p => grid.appendChild(buildPostMortemCard(p)));
+  }
+  document.getElementById('pmFilterType').addEventListener('change', renderPostMortemLog);
+  document.getElementById('pmFilterSource').addEventListener('change', renderPostMortemLog);
+
+  function renderAll() {
+    renderIdeaBank();
+    renderNextInLine();
+    renderPostMortemLog();
+  }
+
+  renderAll();
+
+  document.addEventListener('DOMContentLoaded', function () {
+    if (typeof initCloudSync !== 'function') return;
+    initCloudSync({
+      appKey: 'products',
+      syncedPrefixes: ['products:'],
+      onApplied: renderAll,
+    });
+  });
+})();
+</script>
+</body>
+</html>
