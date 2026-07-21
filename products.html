@@ -870,12 +870,13 @@ body::after {
     const products = getProducts();
     const activeCount = products.filter(p => p.status === 'testing').length;
     const monthKey = currentMonthKey();
-    // Currently-active tests always count (they're in-flight execution right
-    // now); completed ones only count if they actually launched this month -
-    // otherwise an old completed test would inflate every future month's tally.
+    // Counts a product toward this month only if it's Active/Completed AND
+    // its own launch date actually falls in the current month - a test
+    // launched two months ago that's still running shouldn't keep padding
+    // every month's tally just because its status hasn't changed.
     const monthlyCount = products.filter(p => {
-      if (p.status === 'testing') return true;
-      return p.status === 'completed' && p.targetLaunchDate && p.targetLaunchDate.slice(0, 7) === monthKey;
+      if (p.status !== 'testing' && p.status !== 'completed') return false;
+      return !!p.targetLaunchDate && p.targetLaunchDate.slice(0, 7) === monthKey;
     }).length;
 
     const pill = document.getElementById('kpiActivePill');
