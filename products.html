@@ -93,6 +93,30 @@ body::after {
   box-shadow: 0 12px 40px rgba(0,0,0,0.45);
 }
 
+/* ----- Executive KPI bar ----- */
+.kpi-bar { display: flex; flex-direction: column; gap: 14px; }
+.kpi-row { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.kpi-pill {
+  flex-shrink: 0;
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+  white-space: nowrap;
+}
+.kpi-pill.warn { background: rgba(255,107,107,0.12); color: var(--danger); border: 1px solid rgba(255,107,107,0.3); }
+.kpi-pill.good { background: rgba(107,227,164,0.12); color: var(--success); border: 1px solid rgba(107,227,164,0.3); }
+.kpi-monthly { flex: 1; min-width: 200px; }
+.kpi-monthly-label {
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700; color: var(--text-primary);
+  margin-bottom: 6px; font-variant-numeric: tabular-nums;
+}
+.kpi-monthly-track { height: 10px; border-radius: 5px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.kpi-monthly-fill { height: 100%; border-radius: 5px; background: linear-gradient(90deg, #6BE3A4, #7DD3FC); transition: width 0.4s ease; }
+.kpi-banner { padding: 10px 14px; border-radius: 10px; font-size: 12.5px; font-weight: 600; }
+.kpi-banner.tier-machine { background: rgba(107,227,164,0.10); color: var(--success); border: 1px solid rgba(107,227,164,0.25); }
+.kpi-banner.tier-pace { background: rgba(125,211,252,0.10); color: var(--sky); border: 1px solid rgba(125,211,252,0.25); }
+.kpi-banner.tier-warning { background: rgba(255,107,107,0.10); color: var(--danger); border: 1px solid rgba(255,107,107,0.25); }
+
 /* ----- Add-idea form ----- */
 .idea-add-row { display: flex; flex-direction: column; margin-bottom: 18px; }
 .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; }
@@ -175,7 +199,8 @@ body::after {
   font-family: var(--font-mono); font-size: 11px; font-weight: 700;
   color: var(--warning);
 }
-.launch-date-tag.off-cycle::after { content: '(off-cycle)'; color: var(--text-tertiary); font-weight: 500; margin-left: 2px; }
+.badge-launchday { background: rgba(242,192,99,0.16); color: var(--warning); }
+.badge-launchday.off-cycle { background: rgba(255,107,107,0.14); color: var(--danger); }
 .mini-num-row { display: flex; gap: 10px; }
 .mini-num-field { display: flex; flex-direction: column; gap: 3px; flex: 1; }
 .mini-num-field label { font-size: 9.5px; color: var(--text-tertiary); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
@@ -184,8 +209,9 @@ body::after {
   border-radius: 8px; color: var(--text-primary); font-family: var(--font-mono); font-size: 13px;
   padding: 6px 8px; outline: none;
 }
-.rpm-line {
-  font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+.card-metrics-row {
+  display: flex; gap: 12px; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 12px; font-weight: 700;
   color: var(--warning); font-variant-numeric: tabular-nums;
 }
 .empty-state { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 14px 0; }
@@ -258,6 +284,19 @@ body::after {
 
   <h1 class="dash-title">Product Hub</h1>
   <p class="dash-sub">Idea Dump → Next in Line → Active Test → Post-Mortem.</p>
+
+  <div class="section">
+    <div class="card-panel kpi-bar">
+      <div class="kpi-row">
+        <div class="kpi-pill" id="kpiActivePill"></div>
+        <div class="kpi-monthly">
+          <div class="kpi-monthly-label" id="kpiMonthlyLabel"></div>
+          <div class="kpi-monthly-track"><div class="kpi-monthly-fill" id="kpiMonthlyFill"></div></div>
+        </div>
+      </div>
+      <div class="kpi-banner" id="kpiBanner"></div>
+    </div>
+  </div>
 
   <div class="section">
     <div class="section-title">Product Idea Bank</div>
@@ -453,6 +492,24 @@ body::after {
     const perMillion = (orders * aov / views) * 1000000;
     return '$' + perMillion.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' / M views';
   }
+  function formatRevenue(orders, aov) {
+    return '$' + (orders * aov).toLocaleString(undefined, { maximumFractionDigits: 0 });
+  }
+  function formatConvRate(views, orders) {
+    if (!views) return '—';
+    return ((orders / views) * 100).toFixed(2) + '%';
+  }
+
+  function launchDayBadge(dateStr) {
+    const day = new Date(dateStr + 'T00:00:00').getDay(); // 0=Sun, 1=Mon, 3=Wed
+    const badge = document.createElement('span');
+    badge.className = 'badge badge-launchday';
+    if (day === 1) badge.textContent = 'MON';
+    else if (day === 3) badge.textContent = 'WED';
+    else if (day === 0) badge.textContent = 'SUN';
+    else { badge.textContent = 'OFF-CYCLE'; badge.classList.add('off-cycle'); }
+    return badge;
+  }
 
   function badgesFor(p) {
     const wrap = document.createElement('div');
@@ -568,8 +625,11 @@ body::after {
     card.appendChild(badgesFor(p));
     if (p.targetLaunchDate) {
       const tag = document.createElement('div');
-      tag.className = 'launch-date-tag' + (isLaunchDay(p.targetLaunchDate) ? '' : ' off-cycle');
-      tag.textContent = '🚀 ' + formatDate(p.targetLaunchDate);
+      tag.className = 'launch-date-tag';
+      tag.appendChild(launchDayBadge(p.targetLaunchDate));
+      const dateText = document.createElement('span');
+      dateText.textContent = '🚀 ' + formatDate(p.targetLaunchDate);
+      tag.appendChild(dateText);
       card.appendChild(tag);
     }
     const actions = document.createElement('div');
@@ -636,14 +696,17 @@ body::after {
     numRow.appendChild(aovField);
     card.appendChild(numRow);
 
-    const rpmLine = document.createElement('div');
-    rpmLine.className = 'rpm-line';
-    card.appendChild(rpmLine);
-    function showRpm() {
+    const metricsLine = document.createElement('div');
+    metricsLine.className = 'card-metrics-row';
+    card.appendChild(metricsLine);
+    function showMetrics() {
       const views = parseInt(viewsInput.value, 10) || 0;
       const orders = parseInt(ordersInput.value, 10) || 0;
       const aov = parseFloat(aovInput.value) || 0;
-      rpmLine.textContent = '📈 ' + formatRpm(views, orders, aov);
+      metricsLine.innerHTML =
+        '<span>💰 ' + formatRevenue(orders, aov) + '</span>' +
+        '<span>🎯 ' + formatConvRate(views, orders) + '</span>' +
+        '<span>📈 ' + formatRpm(views, orders, aov) + '</span>';
     }
     function commitNums() {
       updateProduct(p.id, {
@@ -651,12 +714,12 @@ body::after {
         ordersGenerated: parseInt(ordersInput.value, 10) || 0,
         aov: parseFloat(aovInput.value) || 0,
       });
-      showRpm();
+      showMetrics();
     }
     viewsInput.addEventListener('change', commitNums);
     ordersInput.addEventListener('change', commitNums);
     aovInput.addEventListener('change', commitNums);
-    showRpm();
+    showMetrics();
 
     const actions = document.createElement('div');
     actions.className = 'product-card-actions';
@@ -746,10 +809,13 @@ body::after {
 
     const stats = document.createElement('div');
     stats.className = 'pm-stats-row';
+    const views = p.viewsAccumulated || 0, orders = p.ordersGenerated || 0, aov = p.aov || 0;
     stats.innerHTML =
-      '<span>👁 <b>' + (p.viewsAccumulated || 0) + '</b></span>' +
-      '<span>🛒 <b>' + (p.ordersGenerated || 0) + '</b></span>' +
-      '<span>📈 <b>' + formatRpm(p.viewsAccumulated || 0, p.ordersGenerated || 0, p.aov || 0) + '</b></span>';
+      '<span>👁 <b>' + views + '</b></span>' +
+      '<span>🛒 <b>' + orders + '</b></span>' +
+      '<span>💰 <b>' + formatRevenue(orders, aov) + '</b></span>' +
+      '<span>🎯 <b>' + formatConvRate(views, orders) + '</b></span>' +
+      '<span>📈 <b>' + formatRpm(views, orders, aov) + '</b></span>';
     card.appendChild(stats);
 
     [['Why it failed', p.whyItFailed], ['Could improve', p.whatCouldBeImproved], ['Key lesson', p.keyLesson]].forEach(([q, a]) => {
@@ -793,7 +859,54 @@ body::after {
   document.getElementById('pmFilterType').addEventListener('change', renderPostMortemLog);
   document.getElementById('pmFilterSource').addEventListener('change', renderPostMortemLog);
 
+  // ---------- Executive KPI bar ----------
+  const KPI_ACTIVE_TARGET = 3;
+  const KPI_MONTHLY_TARGET = 10;
+  function currentMonthKey() {
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  }
+  function renderKpiBar() {
+    const products = getProducts();
+    const activeCount = products.filter(p => p.status === 'testing').length;
+    const monthKey = currentMonthKey();
+    // Currently-active tests always count (they're in-flight execution right
+    // now); completed ones only count if they actually launched this month -
+    // otherwise an old completed test would inflate every future month's tally.
+    const monthlyCount = products.filter(p => {
+      if (p.status === 'testing') return true;
+      return p.status === 'completed' && p.targetLaunchDate && p.targetLaunchDate.slice(0, 7) === monthKey;
+    }).length;
+
+    const pill = document.getElementById('kpiActivePill');
+    if (activeCount < KPI_ACTIVE_TARGET) {
+      pill.className = 'kpi-pill warn';
+      pill.textContent = '⚠️ Below Target (' + activeCount + '/' + KPI_ACTIVE_TARGET + ' Active)';
+    } else {
+      pill.className = 'kpi-pill good';
+      pill.textContent = '🔥 Optimal Volume (' + activeCount + '/' + KPI_ACTIVE_TARGET + ' Active)';
+    }
+
+    const pct = Math.min(100, Math.round((monthlyCount / KPI_MONTHLY_TARGET) * 100));
+    document.getElementById('kpiMonthlyLabel').textContent =
+      monthlyCount + ' / ' + KPI_MONTHLY_TARGET + ' Launched This Month (' + pct + '%)';
+    document.getElementById('kpiMonthlyFill').style.width = pct + '%';
+
+    const banner = document.getElementById('kpiBanner');
+    if (monthlyCount >= KPI_MONTHLY_TARGET && activeCount >= KPI_ACTIVE_TARGET) {
+      banner.className = 'kpi-banner tier-machine';
+      banner.textContent = '🚀 MACHINE MODE: Volume Target Smashed! Out-executing the market.';
+    } else if (monthlyCount >= 5) {
+      banner.className = 'kpi-banner tier-pace';
+      banner.textContent = '⚡ ON PACE: Stay disciplined on the Mon/Wed/Sun queue.';
+    } else {
+      banner.className = 'kpi-banner tier-warning';
+      banner.textContent = "⚠️ PACE WARNING: Volume is too low. Move ideas to 'Next in Line'.";
+    }
+  }
+
   function renderAll() {
+    renderKpiBar();
     renderIdeaBank();
     renderNextInLine();
     renderPostMortemLog();
