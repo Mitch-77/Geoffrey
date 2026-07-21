@@ -184,6 +184,10 @@ body::after {
   border-radius: 8px; color: var(--text-primary); font-family: var(--font-mono); font-size: 13px;
   padding: 6px 8px; outline: none;
 }
+.rpm-line {
+  font-family: var(--font-mono); font-size: 12.5px; font-weight: 700;
+  color: var(--warning); font-variant-numeric: tabular-nums;
+}
 .empty-state { text-align: center; font-size: 12px; font-style: italic; color: var(--text-tertiary); padding: 14px 0; }
 
 /* ----- Post-mortem filter row ----- */
@@ -203,7 +207,7 @@ body::after {
   color: var(--text-tertiary); margin-bottom: 2px;
 }
 .pm-qa-a { font-size: 12.5px; color: var(--text-secondary); white-space: pre-wrap; overflow-wrap: break-word; }
-.pm-stats-row { display: flex; gap: 14px; font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.pm-stats-row { display: flex; gap: 14px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 12px; color: var(--text-primary); font-variant-numeric: tabular-nums; }
 .pm-stats-row b { color: var(--warning); }
 
 /* ----- Modals ----- */
@@ -361,6 +365,10 @@ body::after {
       <div class="field"><label>Orders generated</label><input type="number" min="0" id="pmOrdersInput"></div>
     </div>
     <div class="field">
+      <label>AOV ($)</label>
+      <input type="number" min="0" step="0.01" id="pmAovInput">
+    </div>
+    <div class="field">
       <label>Why did it fail?</label>
       <textarea id="pmWhyInput" rows="2"></textarea>
     </div>
@@ -436,6 +444,16 @@ body::after {
     return day === 0 || day === 1 || day === 3;
   }
 
+  // The baseline metric organic dropshippers judge a product by: revenue
+  // per million views. orders * AOV = revenue; scale it up to a common
+  // denominator (1M views) so products with wildly different view counts
+  // can be compared apples-to-apples.
+  function formatRpm(views, orders, aov) {
+    if (!views) return 'No views yet';
+    const perMillion = (orders * aov / views) * 1000000;
+    return '$' + perMillion.toLocaleString(undefined, { maximumFractionDigits: 0 }) + ' / M views';
+  }
+
   function badgesFor(p) {
     const wrap = document.createElement('div');
     wrap.className = 'product-card-badges';
@@ -503,7 +521,7 @@ body::after {
       contentSource: document.getElementById('ideaSourceInput').value,
       targetLaunchDate: null,
       whyItFailed: null, whatCouldBeImproved: null, keyLesson: null,
-      viewsAccumulated: 0, ordersGenerated: 0,
+      viewsAccumulated: 0, ordersGenerated: 0, aov: 0,
       createdAt: new Date().toISOString(),
     });
     setProducts(list);
@@ -598,9 +616,6 @@ body::after {
     const viewsInput = document.createElement('input');
     viewsInput.type = 'number'; viewsInput.min = '0';
     viewsInput.value = p.viewsAccumulated || 0;
-    viewsInput.addEventListener('change', () => {
-      updateProduct(p.id, { viewsAccumulated: parseInt(viewsInput.value, 10) || 0 });
-    });
     viewsField.appendChild(viewsInput);
     numRow.appendChild(viewsField);
     const ordersField = document.createElement('div');
@@ -609,12 +624,39 @@ body::after {
     const ordersInput = document.createElement('input');
     ordersInput.type = 'number'; ordersInput.min = '0';
     ordersInput.value = p.ordersGenerated || 0;
-    ordersInput.addEventListener('change', () => {
-      updateProduct(p.id, { ordersGenerated: parseInt(ordersInput.value, 10) || 0 });
-    });
     ordersField.appendChild(ordersInput);
     numRow.appendChild(ordersField);
+    const aovField = document.createElement('div');
+    aovField.className = 'mini-num-field';
+    aovField.innerHTML = '<label>AOV ($)</label>';
+    const aovInput = document.createElement('input');
+    aovInput.type = 'number'; aovInput.min = '0'; aovInput.step = '0.01';
+    aovInput.value = p.aov || 0;
+    aovField.appendChild(aovInput);
+    numRow.appendChild(aovField);
     card.appendChild(numRow);
+
+    const rpmLine = document.createElement('div');
+    rpmLine.className = 'rpm-line';
+    card.appendChild(rpmLine);
+    function showRpm() {
+      const views = parseInt(viewsInput.value, 10) || 0;
+      const orders = parseInt(ordersInput.value, 10) || 0;
+      const aov = parseFloat(aovInput.value) || 0;
+      rpmLine.textContent = '📈 ' + formatRpm(views, orders, aov);
+    }
+    function commitNums() {
+      updateProduct(p.id, {
+        viewsAccumulated: parseInt(viewsInput.value, 10) || 0,
+        ordersGenerated: parseInt(ordersInput.value, 10) || 0,
+        aov: parseFloat(aovInput.value) || 0,
+      });
+      showRpm();
+    }
+    viewsInput.addEventListener('change', commitNums);
+    ordersInput.addEventListener('change', commitNums);
+    aovInput.addEventListener('change', commitNums);
+    showRpm();
 
     const actions = document.createElement('div');
     actions.className = 'product-card-actions';
@@ -664,6 +706,7 @@ body::after {
     document.getElementById('pmModalTitle').textContent = 'Post-Mortem — ' + p.name;
     document.getElementById('pmViewsInput').value = p.viewsAccumulated || 0;
     document.getElementById('pmOrdersInput').value = p.ordersGenerated || 0;
+    document.getElementById('pmAovInput').value = p.aov || 0;
     document.getElementById('pmWhyInput').value = p.whyItFailed || '';
     document.getElementById('pmImproveInput').value = p.whatCouldBeImproved || '';
     document.getElementById('pmLessonInput').value = p.keyLesson || '';
@@ -681,6 +724,7 @@ body::after {
       status: 'completed',
       viewsAccumulated: parseInt(document.getElementById('pmViewsInput').value, 10) || 0,
       ordersGenerated: parseInt(document.getElementById('pmOrdersInput').value, 10) || 0,
+      aov: parseFloat(document.getElementById('pmAovInput').value) || 0,
       whyItFailed: document.getElementById('pmWhyInput').value.trim() || null,
       whatCouldBeImproved: document.getElementById('pmImproveInput').value.trim() || null,
       keyLesson: document.getElementById('pmLessonInput').value.trim() || null,
@@ -702,7 +746,10 @@ body::after {
 
     const stats = document.createElement('div');
     stats.className = 'pm-stats-row';
-    stats.innerHTML = '<span>👁 <b>' + (p.viewsAccumulated || 0) + '</b></span><span>🛒 <b>' + (p.ordersGenerated || 0) + '</b></span>';
+    stats.innerHTML =
+      '<span>👁 <b>' + (p.viewsAccumulated || 0) + '</b></span>' +
+      '<span>🛒 <b>' + (p.ordersGenerated || 0) + '</b></span>' +
+      '<span>📈 <b>' + formatRpm(p.viewsAccumulated || 0, p.ordersGenerated || 0, p.aov || 0) + '</b></span>';
     card.appendChild(stats);
 
     [['Why it failed', p.whyItFailed], ['Could improve', p.whatCouldBeImproved], ['Key lesson', p.keyLesson]].forEach(([q, a]) => {
