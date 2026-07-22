@@ -82,8 +82,14 @@
           { key: appKey, data: state, updated_at: new Date().toISOString() },
           { onConflict: 'key' }
         );
-        if (!error) lastSyncedJson = json;
-      } catch (e) {}
+        if (!error) {
+          lastSyncedJson = json;
+        } else {
+          console.error('[sync:' + appKey + '] push failed:', error);
+        }
+      } catch (e) {
+        console.error('[sync:' + appKey + '] push threw:', e);
+      }
     }
     function schedulePush() { clearTimeout(pushTimer); pushTimer = setTimeout(pushNow, 250); }
     function flushOnUnload() {
@@ -109,13 +115,17 @@
       supa = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
       try {
         const { data, error } = await supa.from('app_state').select('data').eq('key', appKey).maybeSingle();
-        if (!error && data && data.data && Object.keys(data.data).length > 0) {
+        if (error) {
+          console.error('[sync:' + appKey + '] initial pull failed:', error);
+        } else if (data && data.data && Object.keys(data.data).length > 0) {
           lastSyncedJson = JSON.stringify(data.data);
           applyRemote(data.data);
         } else if (Object.keys(collect()).length > 0) {
           schedulePush();
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('[sync:' + appKey + '] initial pull threw:', e);
+      }
       supa.channel('app_state_' + appKey)
         .on('postgres_changes', {
           event: '*', schema: 'public', table: 'app_state', filter: 'key=eq.' + appKey,
@@ -126,7 +136,11 @@
           lastSyncedJson = incoming;
           applyRemote(payload.new.data);
         })
-        .subscribe();
+        .subscribe((status, err) => {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+            console.error('[sync:' + appKey + '] realtime subscription problem:', status, err);
+          }
+        });
     })();
     window.addEventListener('beforeunload', flushOnUnload);
     window.addEventListener('pagehide', flushOnUnload);
