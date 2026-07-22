@@ -144,6 +144,13 @@
     })();
     window.addEventListener('beforeunload', flushOnUnload);
     window.addEventListener('pagehide', flushOnUnload);
+    // beforeunload/pagehide don't fire reliably on mobile when you just
+    // switch apps or lock the screen (as opposed to actually closing the
+    // tab) - visibilitychange does, and is the standard fix for "a change
+    // made right before backgrounding the app never got saved."
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) flushOnUnload();
+    });
     window.addEventListener('storage', (e) => { if (e.key && matches(e.key)) schedulePush(); });
   };
 })();
